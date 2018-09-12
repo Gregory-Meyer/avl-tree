@@ -1,0 +1,9 @@
+-march=native
+-pedantic
+-std=c99
+-Wall
+-Wcast-qual
+-Wconversion
+-Wextra
+-Wmissing-prototypes
+-Wshadow
