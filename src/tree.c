@@ -37,11 +37,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-TreeErrorE Tree_init(Tree *self) {
+TreeErrorE Tree_init(Tree *self, TreeComparatorT comparator) {
     assert(self);
 
     self->root = NULL;
     self->size = 0;
+    self->comparator = comparator;
 
     return TREE_SUCCESS;
 }
@@ -52,25 +53,38 @@ TreeErrorE Tree_destroy(Tree *self) {
     return Tree_clear(self);
 }
 
-static TreeErrorE do_insert(Tree *self, TreeNode *to_insert) {
-    assert(self);
+static TreeErrorE do_insert(TreeNode *node, TreeNode *to_insert, TreeComparatorT comparator) {
+    assert(node);
     assert(to_insert);
 
-    if (!self->root) {
-        self->root = to_insert;
+    const int compare = comparator(to_insert->key, node->key);
+
+    if (compare < 0) {
+        if (!node->left) {
+            node->left = to_insert;
+            to_insert->parent = node;
+
+            return TREE_SUCCESS;
+        }
+
+        return do_insert(node->left, to_insert, comparator);
+    } else if (compare > 0) {
+        if (!node->right) {
+            node->right = to_insert;
+            to_insert->parent = node;
+
+            return TREE_SUCCESS;
+        }
+
+        return do_insert(node->right, to_insert, comparator);
     }
 
-    ++self->size;
-
-    return TREE_SUCCESS;
+    return TREE_DUPLICATE_KEY;
 }
 
-TreeErrorE Tree_insert(Tree *self, const char *key, size_t key_length, void *value) {
+TreeErrorE Tree_insert(Tree *self, const void *key, void *value) {
     assert(self);
     assert(key);
-
-    StringView key_view;
-    StringView_init(&key_view, key, key_length);
 
     TreeNode *const to_insert = malloc(sizeof(TreeNode));
 
@@ -78,7 +92,7 @@ TreeErrorE Tree_insert(Tree *self, const char *key, size_t key_length, void *val
         return TREE_NO_MEMORY;
     }
 
-    const TreeErrorE init_ret = TreeNode_init(to_insert, key_view, value);
+    const TreeErrorE init_ret = TreeNode_init(to_insert, key, value);
 
     if (init_ret != TREE_SUCCESS) {
         free(to_insert);
@@ -86,7 +100,14 @@ TreeErrorE Tree_insert(Tree *self, const char *key, size_t key_length, void *val
         return init_ret;
     }
 
-    const TreeErrorE insert_ret = do_insert(self, to_insert);
+    if (!self->root) {
+        self->root = to_insert;
+        ++self->size;
+
+        return TREE_SUCCESS;
+    }
+
+    const TreeErrorE insert_ret = do_insert(self->root, to_insert, self->comparator);
 
     if (insert_ret != TREE_SUCCESS) {
         free(to_insert);
@@ -99,16 +120,88 @@ TreeErrorE Tree_insert(Tree *self, const char *key, size_t key_length, void *val
     return TREE_SUCCESS;
 }
 
-TreeErrorE Tree_erase(Tree *self, const TreeIter *iter) {
-    return TREE_NOT_IMPLEMENTED;
+static TreeNode* inorder_successor(TreeNode *node) {
+    assert(node);
+
+    if (node->right) {
+        for (node = node->right; node->left; node = node->left) { }
+
+        return node;
+    }
+
+    for (; node->parent && node->parent->right == node; node = node->parent) { }
+
+    return node->parent;
 }
 
-TreeErrorE Tree_find(const Tree *self, const char *key, size_t len, TreeIter *iter) {
+TreeErrorE Tree_erase(Tree *self, const void *key) {
     return TREE_NOT_IMPLEMENTED;
+
+    // assert(self);
+    // assert(key);
+
+    // if (!self->root) {
+    //     return TREE_NO_SUCH_KEY;
+    // }
+
+    // TreeNode *found = NULL;
+    // const TreeErrorE ret = TreeNode_find(self->root, key, self->comparator, &found);
+
+    // if (ret != TREE_SUCCESS) {
+    //     return ret;
+    // }
+
+    // TreeNode *successor = inorder_successor(found);
+
+    // if (successor->parent->left == successor) {
+    //     successor->parent->left = NULL;
+    // } else {
+    //     successor->parent->right = NULL;
+    // }
+
+    // return TREE_SUCCESS;
 }
 
-TreeErrorE Tree_find_mut(Tree *self, const char *key, size_t len, TreeIterMut *iter) {
-    return TREE_NOT_IMPLEMENTED;
+TreeErrorE Tree_find(const Tree *self, const void *key, const void **value) {
+    assert(self);
+    assert(key);
+    assert(value);
+
+    if (!self->root) {
+        return TREE_NO_SUCH_KEY;
+    }
+
+    TreeNode *found = NULL;
+    const TreeErrorE ret = TreeNode_find(self->root, key, self->comparator, &found);
+
+    if (ret != TREE_SUCCESS) {
+        return ret;
+    }
+
+    *value = found->value;
+
+    return TREE_SUCCESS;
+}
+
+TreeErrorE Tree_find_mut(Tree *self, const void *key, void **value) {
+    assert(self);
+    assert(key);
+    assert(value);
+
+    if (!self->root) {
+        return TREE_NO_SUCH_KEY;
+    }
+
+    TreeNode *found = NULL;
+    const TreeErrorE ret = TreeNode_find(self->root, key, self->comparator, &found);
+
+    if (ret != TREE_SUCCESS) {
+        return ret;
+    }
+
+    *value = found->value;
+
+    return TREE_SUCCESS;
 }
 
 TreeErrorE Tree_clear(Tree *self) {
@@ -132,4 +225,58 @@ TreeErrorE Tree_size(const Tree *self, size_t *size) {
     *size = self->size;
 
     return TREE_SUCCESS;
+}
+
+static TreeErrorE do_traverse(const TreeNode *self, TreeTraversalCallbackT callback,
+                              void *context) {
+    assert(self);
+
+    if (self->left) {
+        do_traverse(self->left, callback, context);
+    }
+
+    callback(context, self->key, self->value);
+
+    if (self->right) {
+        do_traverse(self->right, callback, context);
+    }
+
+    return TREE_SUCCESS;
+}
+
+static TreeErrorE do_traverse_mut(TreeNode *self, TreeMutTraversalCallbackT callback,
+                                  void *context) {
+    assert(self);
+
+    if (self->left) {
+        do_traverse_mut(self->left, callback, context);
+    }
+
+    callback(context, self->key, self->value);
+
+    if (self->right) {
+        do_traverse_mut(self->right, callback, context);
+    }
+
+    return TREE_SUCCESS;
+}
+
+TreeErrorE Tree_traverse(const Tree *self, TreeTraversalCallbackT callback, void *context) {
+    assert(self);
+
+    if (!self->root) {
+        return TREE_SUCCESS;
+    }
+
+    return do_traverse(self->root, callback, context);
+}
+
+TreeErrorE Tree_traverse_mut(Tree *self, TreeMutTraversalCallbackT callback, void *context) {
+    assert(self);
+
+    if (!self->root) {
+        return TREE_SUCCESS;
+    }
+
+    return do_traverse_mut(self->root, callback, context);
 }

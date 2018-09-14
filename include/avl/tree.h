@@ -33,8 +33,8 @@
 #define AVL_TREE_H
 
 #include <avl/error.h>
-#include <avl/iter.h>
 #include <avl/node.h>
+#include <avl/types.h>
 
 #include <stddef.h>
 
@@ -45,23 +45,28 @@ extern "C" {
 typedef struct Tree {
     TreeNode *root;
     size_t size;
+    TreeComparatorT comparator;
 } Tree;
 
-TreeErrorE Tree_init(Tree *self);
+TreeErrorE Tree_init(Tree *self, TreeComparatorT comparator);
 
 TreeErrorE Tree_destroy(Tree *self);
 
-TreeErrorE Tree_insert(Tree *self, const char *key, size_t len, void *value);
+TreeErrorE Tree_insert(Tree *self, const void *key, void *value);
 
-TreeErrorE Tree_erase(Tree *self, const TreeIter *iter);
+TreeErrorE Tree_erase(Tree *self, const void *key);
 
-TreeErrorE Tree_find(const Tree *self, const char *key, size_t len, TreeIter *iter);
+TreeErrorE Tree_find(const Tree *self, const void *key, const void **value);
 
-TreeErrorE Tree_find_mut(Tree *self, const char *key, size_t len, TreeIterMut *iter);
+TreeErrorE Tree_find_mut(Tree *self, const void *key, void **value);
 
 TreeErrorE Tree_clear(Tree *self);
 
 TreeErrorE Tree_size(const Tree *self, size_t *size);
+
+TreeErrorE Tree_traverse(const Tree *self, TreeTraversalCallbackT callback, void *context);
+
+TreeErrorE Tree_traverse_mut(Tree *self, TreeMutTraversalCallbackT callback, void *context);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -34,7 +34,7 @@
 
 #include <avl/node.h>
 
-#include "internal/str.h"
+#include <avl/types.h>
 
 #include <stddef.h>
 
@@ -47,17 +47,20 @@ struct TreeNode {
     struct TreeNode *right;
     struct TreeNode *parent;
     size_t height;
-    String key;
+    const void *key;
     void *value;
 };
 
-TreeErrorE TreeNode_init(TreeNode *self, StringView key, void *value);
+TreeErrorE TreeNode_init(TreeNode *self, const void *key, void *value);
 
 TreeErrorE TreeNode_destroy(TreeNode *self);
 
 TreeErrorE TreeNode_rotate_right(TreeNode *self, TreeNode **head);
 
 TreeErrorE TreeNode_rotate_left(TreeNode *self, TreeNode **head);
+
+TreeErrorE TreeNode_find(TreeNode *self, const void *key,
+                         TreeComparatorT comparator, TreeNode **found);
 
 #ifdef __cplusplus
 } // extern "C"

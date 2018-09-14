@@ -38,10 +38,9 @@ extern "C" {
 
 typedef enum TreeErrorE {
     TREE_SUCCESS,
-    TREE_NULL_KEY,
-    TREE_NOT_FOUND,
     TREE_NO_MEMORY,
-    TREE_NO_NEXT_ELEMENT,
+    TREE_NO_SUCH_KEY,
+    TREE_DUPLICATE_KEY,
     TREE_NOT_IMPLEMENTED
 } TreeErrorE;
 

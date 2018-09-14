@@ -29,79 +29,29 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include "internal/node.h"
+#ifndef AVL_TYPES_H
+#define AVL_TYPES_H
 
-#include "assert.h"
+#include <avl/error.h>
+#include <avl/node.h>
 
-TreeErrorE TreeNode_init(TreeNode *self, StringView key, void *value) {
-    assert(self);
+#include <stddef.h>
 
-    const TreeErrorE ret = StringView_copy(key, &self->key);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    if (ret != TREE_SUCCESS) {
-        return ret;
-    }
+// int compare(const void *lhs, const void *rhs);
+typedef int (*TreeComparatorT)(const void*, const void*);
 
-    self->left = NULL;
-    self->right = NULL;
-    self->parent = NULL;
-    self->height = 0;
-    self->value = value;
+// void traverse(void *context, const void *key, const void *value);
+typedef void (*TreeTraversalCallbackT)(void*, const void*, const void*);
 
-    return TREE_SUCCESS;
-}
+// void traverse_mut(void *context, const void *key, void *value);
+typedef void (*TreeMutTraversalCallbackT)(void*, const void*, void*);
 
-TreeErrorE TreeNode_destroy(TreeNode *self) {
-    assert(self);
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
-    if (self->left) {
-        TreeNode_destroy(self->left);
-        self->left = NULL;
-    }
-
-    if (self->right) {
-        TreeNode_destroy(self->right);
-        self->right = NULL;
-    }
-
-    self->parent = NULL;
-
-    String_destroy(&self->key);
-    self->value = NULL;
-
-    return TREE_SUCCESS;
-}
-
-TreeErrorE TreeNode_rotate_right(TreeNode *self, TreeNode **head) {
-    assert(self);
-    assert(self->left);
-
-    TreeNode *const left = self->left;
-
-    self->left = left->right;
-
-    if (self->left) {
-        self->left->parent = self;
-    }
-
-    left->right = self;
-
-    left->parent = self->parent;
-    self->parent = left;
-
-    if (left->parent) {
-        if (left->parent->left == self) {
-            left->parent->left = left;
-        } else {
-            left->parent->right = left;
-        }
-    }
-
-    *head = left;
-
-    return TREE_SUCCESS;
-}
-
-TreeErrorE TreeNode_rotate_left(TreeNode *self, TreeNode **head) {
-    return TREE_NOT_IMPLEMENTED;
-}
+#endif

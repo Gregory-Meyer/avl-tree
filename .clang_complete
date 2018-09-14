@@ -1,7 +1,8 @@
 -I ../../include
+-I ../../external/catch2
 -march=native
 -pedantic
--std=c99
+-std=c++14
 -Wall
 -Wcast-qual
 -Wconversion
