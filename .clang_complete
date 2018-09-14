@@ -1,3 +1,4 @@
+-I ../../include
 -march=native
 -pedantic
 -std=c99

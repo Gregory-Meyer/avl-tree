@@ -29,8 +29,12 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef AVL_TREE_H
-#define AVL_TREE_H
+#ifndef AVL_SRC_INTERNAL_NODE_H
+#define AVL_SRC_INTERNAL_NODE_H
+
+#include <avl/node.h>
+
+#include "internal/str.h"
 
 #include <stddef.h>
 
@@ -38,32 +42,22 @@
 extern "C" {
 #endif
 
-typedef enum AvlTreeErrorE {
-    AVL_SUCCESS,
-    AVL_NULL_KEY,
-    AVL_NOT_FOUND,
-    AVL_NO_MEMORY
-} AvlTreeErrorE;
+struct TreeNode {
+    struct TreeNode *left;
+    struct TreeNode *right;
+    struct TreeNode *parent;
+    size_t height;
+    String key;
+    void *value;
+};
 
-typedef struct AvlTree AvlTree;
+TreeErrorE TreeNode_init(TreeNode *self, StringView key, void *value);
 
-typedef struct AvlTreeIterator AvlTreeIterator;
+TreeErrorE TreeNode_destroy(TreeNode *self);
 
-AvlTreeErrorE AvlTree_init(AvlTree *self);
+TreeErrorE TreeNode_rotate_right(TreeNode *self, TreeNode **head);
 
-AvlTreeErrorE AvlTree_destroy(AvlTree *self);
-
-AvlTreeErrorE AvlTree_insert(AvlTree *self, const char *key, size_t len, void *value);
-
-AvlTreeErrorE AvlTree_erase(AvlTree *self, AvlTreeIterator iter);
-
-AvlTreeErrorE AvlTree_find(AvlTree *self, const char *key, size_t len, AvlTreeIterator *iter);
-
-AvlTreeErrorE AvlTreeIterator_next(AvlTreeIterator *self);
-
-AvlTreeErrorE AvlTreeIterator_prev(AvlTreeIterator *self);
-
-AvlTreeErrorE AvlTreeIterator_deref(const AvlTreeIterator *self, void **value);
+TreeErrorE TreeNode_rotate_left(TreeNode *self, TreeNode **head);
 
 #ifdef __cplusplus
 } // extern "C"
