@@ -56,9 +56,9 @@ TreeErrorE Tree_insert(Tree *self, const void *key, void *value);
 
 TreeErrorE Tree_erase(Tree *self, const void *key);
 
-TreeErrorE Tree_find(const Tree *self, const void *key, const void **value);
+TreeErrorE Tree_find(const Tree *self, const void *key, const void **value_ptr);
 
-TreeErrorE Tree_find_mut(Tree *self, const void *key, void **value);
+TreeErrorE Tree_find_mut(Tree *self, const void *key, void **value_ptr);
 
 TreeErrorE Tree_clear(Tree *self);
 

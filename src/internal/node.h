@@ -46,7 +46,7 @@ struct TreeNode {
     struct TreeNode *left;
     struct TreeNode *right;
     struct TreeNode *parent;
-    size_t height;
+    ptrdiff_t height;
     const void *key;
     void *value;
 };
@@ -55,12 +55,12 @@ TreeErrorE TreeNode_init(TreeNode *self, const void *key, void *value);
 
 TreeErrorE TreeNode_destroy(TreeNode *self);
 
-TreeErrorE TreeNode_rotate_right(TreeNode *self, TreeNode **head);
+TreeErrorE TreeNode_lower_bound(TreeNode *self, const void *key,
+                                TreeComparatorT comparator, TreeNode **bound);
 
-TreeErrorE TreeNode_rotate_left(TreeNode *self, TreeNode **head);
+TreeErrorE TreeNode_insert(TreeNode *self, TreeNode *to_insert, TreeComparatorT comparator);
 
-TreeErrorE TreeNode_find(TreeNode *self, const void *key,
-                         TreeComparatorT comparator, TreeNode **found);
+TreeErrorE TreeNode_erase(TreeNode *self);
 
 #ifdef __cplusplus
 } // extern "C"

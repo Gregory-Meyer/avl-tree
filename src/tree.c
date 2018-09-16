@@ -53,38 +53,8 @@ TreeErrorE Tree_destroy(Tree *self) {
     return Tree_clear(self);
 }
 
-static TreeErrorE do_insert(TreeNode *node, TreeNode *to_insert, TreeComparatorT comparator) {
-    assert(node);
-    assert(to_insert);
-
-    const int compare = comparator(to_insert->key, node->key);
-
-    if (compare < 0) {
-        if (!node->left) {
-            node->left = to_insert;
-            to_insert->parent = node;
-
-            return TREE_SUCCESS;
-        }
-
-        return do_insert(node->left, to_insert, comparator);
-    } else if (compare > 0) {
-        if (!node->right) {
-            node->right = to_insert;
-            to_insert->parent = node;
-
-            return TREE_SUCCESS;
-        }
-
-        return do_insert(node->right, to_insert, comparator);
-    }
-
-    return TREE_DUPLICATE_KEY;
-}
-
 TreeErrorE Tree_insert(Tree *self, const void *key, void *value) {
     assert(self);
-    assert(key);
 
     TreeNode *const to_insert = malloc(sizeof(TreeNode));
 
@@ -107,7 +77,7 @@ TreeErrorE Tree_insert(Tree *self, const void *key, void *value) {
         return TREE_SUCCESS;
     }
 
-    const TreeErrorE insert_ret = do_insert(self->root, to_insert, self->comparator);
+    const TreeErrorE insert_ret = TreeNode_insert(self->root, to_insert, self->comparator);
 
     if (insert_ret != TREE_SUCCESS) {
         free(to_insert);
@@ -115,91 +85,85 @@ TreeErrorE Tree_insert(Tree *self, const void *key, void *value) {
         return insert_ret;
     }
 
+    for (; self->root->parent; self->root = self->root->parent) { }
+
     ++self->size;
 
     return TREE_SUCCESS;
 }
 
-static TreeNode* inorder_successor(TreeNode *node) {
-    assert(node);
-
-    if (node->right) {
-        for (node = node->right; node->left; node = node->left) { }
-
-        return node;
-    }
-
-    for (; node->parent && node->parent->right == node; node = node->parent) { }
-
-    return node->parent;
-}
-
 TreeErrorE Tree_erase(Tree *self, const void *key) {
-    return TREE_NOT_IMPLEMENTED;
-
-    // assert(self);
-    // assert(key);
-
-    // if (!self->root) {
-    //     return TREE_NO_SUCH_KEY;
-    // }
-
-    // TreeNode *found = NULL;
-    // const TreeErrorE ret = TreeNode_find(self->root, key, self->comparator, &found);
-
-    // if (ret != TREE_SUCCESS) {
-    //     return ret;
-    // }
-
-    // TreeNode *successor = inorder_successor(found);
-
-    // if (successor->parent->left == successor) {
-    //     successor->parent->left = NULL;
-    // } else {
-    //     successor->parent->right = NULL;
-    // }
-
-    // return TREE_SUCCESS;
-}
-
-TreeErrorE Tree_find(const Tree *self, const void *key, const void **value) {
     assert(self);
     assert(key);
-    assert(value);
 
     if (!self->root) {
         return TREE_NO_SUCH_KEY;
     }
 
     TreeNode *found = NULL;
-    const TreeErrorE ret = TreeNode_find(self->root, key, self->comparator, &found);
+    const TreeErrorE lower_bound_ret =
+        TreeNode_lower_bound(self->root, key, self->comparator, &found);
 
-    if (ret != TREE_SUCCESS) {
-        return ret;
+    if (lower_bound_ret != TREE_SUCCESS) {
+        return lower_bound_ret;
+    } else if (self->comparator(key, found->key) != 0) {
+        return TREE_NO_SUCH_KEY;
     }
 
-    *value = found->value;
+    const TreeErrorE erase_ret = TreeNode_erase(found);
+
+    if (erase_ret != TREE_SUCCESS) {
+        return erase_ret;
+    }
+
+    free(found);
+
+    for (; self->root->parent; self->root = self->root->parent) { }
+    --self->size;
 
     return TREE_SUCCESS;
 }
 
-TreeErrorE Tree_find_mut(Tree *self, const void *key, void **value) {
+TreeErrorE Tree_find(const Tree *self, const void *key, const void **value_ptr) {
     assert(self);
-    assert(key);
-    assert(value);
+    assert(value_ptr);
 
     if (!self->root) {
         return TREE_NO_SUCH_KEY;
     }
 
     TreeNode *found = NULL;
-    const TreeErrorE ret = TreeNode_find(self->root, key, self->comparator, &found);
+    const TreeErrorE ret = TreeNode_lower_bound(self->root, key, self->comparator, &found);
 
     if (ret != TREE_SUCCESS) {
         return ret;
+    } else if (self->comparator(found->key, key) != 0) {
+        return TREE_NO_SUCH_KEY;
     }
 
-    *value = found->value;
+    *value_ptr = found->value;
+
+    return TREE_SUCCESS;
+}
+
+TreeErrorE Tree_find_mut(Tree *self, const void *key, void **value_ptr) {
+    assert(self);
+    assert(value_ptr);
+
+    if (!self->root) {
+        return TREE_NO_SUCH_KEY;
+    }
+
+    TreeNode *found = NULL;
+    const TreeErrorE ret = TreeNode_lower_bound(self->root, key, self->comparator, &found);
+
+    if (ret != TREE_SUCCESS) {
+        return ret;
+    } else if (self->comparator(found->key, key) != 0) {
+        return TREE_NO_SUCH_KEY;
+    }
+
+    *value_ptr = found->value;
 
     return TREE_SUCCESS;
 }
