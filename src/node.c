@@ -67,7 +67,7 @@ TreeErrorE TreeNode_destroy(TreeNode *self) {
     return TREE_SUCCESS;
 }
 
-static ptrdiff_t get_height(TreeNode *self) {
+static ptrdiff_t get_height(const TreeNode *self) {
     if (!self) {
         return 0;
     }
@@ -208,7 +208,7 @@ static TreeErrorE do_insert(TreeNode *self, TreeNode *to_insert, TreeComparatorT
     return TREE_SUCCESS;
 }
 
-static ptrdiff_t get_balance_factor(TreeNode *self) {
+static ptrdiff_t get_balance_factor(const TreeNode *self) {
     assert(self);
 
     return get_height(self->left) - get_height(self->right);;
@@ -254,84 +254,149 @@ TreeErrorE TreeNode_insert(TreeNode *self, TreeNode *to_insert, TreeComparatorT 
     return TREE_SUCCESS;
 }
 
-static void remove_parent(TreeNode *self) {
+static TreeNode* minimal_child(TreeNode *self) {
     assert(self);
 
-    if (self->parent && self->parent->left == self) {
-        self->parent->left = NULL;
-    } else if (self->parent) {
-        self->parent->right = NULL;
+    if (!self->left) {
+        return self;
     }
 
-    self->parent = NULL;
-}
-
-static void replace_left(TreeNode *self) {
-    assert(self);
-    assert(self->left);
-    assert(!self->right);
-
-    if (self->parent && self->parent->left == self) {
-        self->parent->left = self->left;
-    } else if (self->parent) {
-        self->parent->right = self->left;
-    }
-
-    self->left->parent = self->parent;
-    self->left = NULL;
-    self->parent = NULL;
-}
-
-static void replace_right(TreeNode *self) {
-    assert(self);
-    assert(self->right);
-    assert(!self->left);
-
-    if (self->parent && self->parent->left == self) {
-        self->parent->left = self->right;
-    } else if (self->parent) {
-        self->parent->right = self->right;
-    }
-
-    self->right->parent = self->parent;
-    self->right = NULL;
-    self->parent = NULL;
+    return minimal_child(self->left);
 }
 
 static TreeNode* inorder_successor(TreeNode *self) {
     assert(self);
     assert(self->right);
 
-    TreeNode *successor = self->right;
-
-    for (; successor->left; successor = successor->left) { }
-
-    return successor;
+    return minimal_child(self->right);
 }
 
-static void replace_successor(TreeNode *self) {
+static TreeNode* do_extract_inorder_successor(TreeNode *self) {
     assert(self);
     assert(self->left);
     assert(self->right);
 
     TreeNode *const successor = inorder_successor(self);
+    TreeNode *const right = successor->right;
+    TreeNode *const parent = successor->parent;
 
-    remove_parent(successor);
+    successor->right = NULL;
+    successor->parent = NULL;
+
+    if (right) {
+        if (parent) {
+            if (parent->left == successor) {
+                parent->left = right;
+            } else {
+                parent->right = right;
+            }
+        }
+
+        right->parent = parent;
+
+        update_height(right);
+        rebalance(right);
+    } else if (parent) {
+        if (parent->left == successor) {
+            parent->left = NULL;
+        } else {
+            parent->right = NULL;
+        }
+
+        update_height(parent);
+        rebalance(parent);
+    }
+
+    return successor;
 }
 
-TreeErrorE TreeNode_erase(TreeNode *self) {
+static TreeNode* extract_successor(TreeNode *self) {
     assert(self);
 
-    if (!self->left && !self->right) {
-        remove_parent(self);
+    TreeNode *const left = self->left;
+    TreeNode *const right = self->right;
 
-        return TREE_SUCCESS;
-    } else if (self->left && !self->right) {
-        replace_left(self);
-    } else if (!self->left && self->right) {
-        replace_right(self);
+    if (!left && !right) {
+        return NULL;
+    } else if (!left && right) {
+        right->parent = NULL;
+        self->right = NULL;
+
+        self->height = 1;
+
+        return right;
+    } else if (left && !right) {
+        left->parent = NULL;
+        self->left = NULL;
+
+        self->height = 1;
+
+        return left;
+    }
+
+    return do_extract_inorder_successor(self);
+}
+
+TreeErrorE TreeNode_erase(TreeNode *self, TreeNode **root) {
+    assert(self);
+    assert(root);
+
+    TreeNode *const successor = extract_successor(self);
+
+    if (self->left) {
+        self->left->parent = successor;
+    }
+
+    if (self->right) {
+        self->right->parent = successor;
+    }
+
+    if (self->parent) {
+        if (self->parent->left == self) {
+            self->parent->left = successor;
+        } else {
+            self->parent->right = successor;
+        }
+
+        for (*root = self; (*root)->parent; *root = (*root)->parent) { }
+    } else if (successor) {
+        for (*root = successor; (*root)->parent; *root = (*root)->parent) { }
     } else {
-        replace_successor(self);
+        *root = NULL;
+    }
+
+    if (successor) {
+        assert(successor->parent != successor);
+        assert(successor->left != successor);
+        assert(successor->right != successor);
+
+        successor->left = self->left;
+        successor->right = self->right;
+        successor->parent = self->parent;
+
+        update_height(successor);
+        rebalance(successor);
+    }
+
+    self->left = NULL;
+    self->right = NULL;
+    self->parent = NULL;
+    self->height = 1;
+
+    return TREE_SUCCESS;
+}
+
+TreeErrorE TreeNode_print_balance_factors(const TreeNode *self, FILE *file_ptr) {
+    assert(self);
+
+    fprintf(file_ptr, "h: %i, b: %i\n", (int) self->height, (int) get_balance_factor(self));
+
+    if (self->left) {
+        TreeNode_print_balance_factors(self->left, file_ptr);
+    }
+
+    if (self->right) {
+        TreeNode_print_balance_factors(self->right, file_ptr);
     }
 
     return TREE_SUCCESS;

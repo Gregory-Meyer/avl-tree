@@ -31,9 +31,13 @@
 
 #include <avl/tree.h>
 
-#include <cstring>
 #include <cstddef>
+#include <cstdio>
+#include <cstring>
 
+#include <iostream>
+#include <numeric>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -215,4 +219,39 @@ TEST_CASE("Tree erasure") {
     }
 
     REQUIRE(Tree_destroy(&tree) == TREE_SUCCESS);
+}
+
+static int intcmp(const void *lhs, const void *rhs) noexcept {
+    const auto lhs_cast = reinterpret_cast<const int*>(lhs);
+    const auto rhs_cast = reinterpret_cast<const int*>(rhs);
+
+    return *lhs_cast - *rhs_cast;
+}
+
+TEST_CASE("Tree balance factors") {
+    Tree tree;
+    REQUIRE(Tree_init(&tree, &intcmp) == TREE_SUCCESS);
+
+    std::vector<std::unique_ptr<int>> vec(32);
+    std::generate(vec.begin(), vec.end(), [] {
+        static int i = 0;
+
+        return std::make_unique<int>(i++);
+    });
+    std::shuffle(vec.begin(), vec.end(), std::random_device{ });
+
+    for (const auto &key : vec) {
+        REQUIRE(Tree_insert(&tree, key.get(), NULL) == TREE_SUCCESS);
+    }
+
+    Tree_print_balance_factors(&tree, stderr);
+
+    while (!vec.empty()) {
+        const int to_pop = *vec.back();
+        REQUIRE(Tree_erase(&tree, &to_pop) == TREE_SUCCESS);
+        vec.pop_back();
+
+        std::cerr << "---\n";
+        Tree_print_balance_factors(&tree, stderr);
+    }
 }

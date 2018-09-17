@@ -110,15 +110,15 @@ TreeErrorE Tree_erase(Tree *self, const void *key) {
         return TREE_NO_SUCH_KEY;
     }
 
-    const TreeErrorE erase_ret = TreeNode_erase(found);
+    const TreeErrorE erase_ret = TreeNode_erase(found, &self->root);
 
     if (erase_ret != TREE_SUCCESS) {
         return erase_ret;
     }
 
+    TreeNode_destroy(found);
     free(found);
 
-    for (; self->root->parent; self->root = self->root->parent) { }
     --self->size;
 
     return TREE_SUCCESS;
@@ -243,4 +243,16 @@ TreeErrorE Tree_traverse_mut(Tree *self, TreeMutTraversalCallbackT callback, voi
     }
 
     return do_traverse_mut(self->root, callback, context);
+}
+
+TreeErrorE Tree_print_balance_factors(const Tree *self, FILE *file_ptr) {
+    assert(self);
+
+    if (!self->root) {
+        fprintf(file_ptr, "tree is empty!\n");
+
+        return TREE_SUCCESS;
+    }
+
+    return TreeNode_print_balance_factors(self->root, file_ptr);
 }

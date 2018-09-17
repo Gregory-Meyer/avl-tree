@@ -37,6 +37,7 @@
 #include <avl/types.h>
 
 #include <stddef.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,6 +68,8 @@ TreeErrorE Tree_size(const Tree *self, size_t *size);
 TreeErrorE Tree_traverse(const Tree *self, TreeTraversalCallbackT callback, void *context);
 
 TreeErrorE Tree_traverse_mut(Tree *self, TreeMutTraversalCallbackT callback, void *context);
+
+TreeErrorE Tree_print_balance_factors(const Tree *self, FILE *file);
 
 #ifdef __cplusplus
 } // extern "C"

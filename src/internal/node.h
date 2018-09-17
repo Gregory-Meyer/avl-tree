@@ -37,6 +37,7 @@
 #include <avl/types.h>
 
 #include <stddef.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,7 +61,9 @@ TreeErrorE TreeNode_lower_bound(TreeNode *self, const void *key,
 
 TreeErrorE TreeNode_insert(TreeNode *self, TreeNode *to_insert, TreeComparatorT comparator);
 
-TreeErrorE TreeNode_erase(TreeNode *self);
+TreeErrorE TreeNode_erase(TreeNode *self, TreeNode **root);
+
+TreeErrorE TreeNode_print_balance_factors(const TreeNode *self, FILE *file_ptr);
 
 #ifdef __cplusplus
 } // extern "C"
