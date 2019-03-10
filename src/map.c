@@ -27,6 +27,7 @@
 #include <avlbst.h>
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 /** AVL Tree node. */
@@ -42,7 +43,7 @@ struct AvlNode {
 /**
  *  Initializes an empty AvlMap.
  *
- *  @param self Must not be NULL. Must have not been initialized yet.
+ *  @param self Must not be NULL. Must not be initialized.
  *  @param compare Must not be NULL. Will be used to compare keys as if
  *                 by compare(lhs, rhs, compare_arg). Return values
  *                 should have the same meaning as strcmp and should
@@ -67,15 +68,82 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
     self->deleter_arg = deleter_arg;
 }
 
+static AvlNode* alloc_node(void *key, void *value);
+
+/**
+ *  Inserts a (key, value) pair into an AvlMap, taking ownership of
+ *  them.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param key If a key in this AvlMap compares equal, ownership will
+ *             remain with the caller and will not be transferred to
+ *             the AvlMap.
+ *  @returns The previous value associated with key, if it exists.
+ *           Ownership is transferred back to the caller in this case.
+ */
+void* AvlMap_insert(AvlMap *self, void *key, void *value) {
+    assert(self);
+
+    if (!self->root) {
+        self->root = alloc_node(key, value);
+        ++self->len;
+
+        return NULL;
+    } else {
+        AvlNode *current = self->root;
+
+        while (1) {
+            const int compare = self->compare(key, current->key, self->compare_arg);
+
+            if (compare == 0) { /* key == current */
+                AvlNode *const previous = current->value;
+                current->value = value;
+
+                return previous;
+            } else if (compare < 0) { /* key < current */
+                if (current->left) {
+                    current = current->left;
+                } else {
+                    current->left = alloc_node(key, value);
+                    ++self->len;
+
+                    return NULL;
+                }
+            } else { /* compare > 0, key > current */
+                if (current->right) {
+                    current = current->right;
+                } else {
+                    current->right = alloc_node(key, value);
+                    ++self->len;
+
+                    return NULL;
+                }
+            }
+        }
+    }
+}
+
+static AvlNode* alloc_node(void *key, void *value) {
+    AvlNode *const node = (AvlNode*) calloc(1, sizeof(AvlNode));
+
+    if (!node) { /* highly unlikely, but sure */
+        fprintf(stderr, "libavlbst: alloc_node: calloc() returned NULL");
+        abort();
+    }
+
+    node->key = key;
+    node->value = value;
+
+    return node;
+}
+
 /**
  *  Destroys an AvlMap, removing all members.
  *
  *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
  *  complexity.
  *
- *  @param self Must not be NULL. Must have been initialized by
- *              AvlMap_init and must not have been destroyed yet by
- *              AvlMap_destroy.
+ *  @param self Must not be NULL. Must be initialized.
  */
 void AvlMap_destroy(AvlMap *self) {
     assert(self);
@@ -88,8 +156,7 @@ void AvlMap_destroy(AvlMap *self) {
  *
  *  Runs in O(1) stack frames and O(n) time complexity.
  *
- *  @param self Must not be NULL. Must have been initialized by
- *              AvlMap_init.
+ *  @param self Must not be NULL. Must be initialized.
  */
 void AvlMap_clear(AvlMap *self) {
     AvlNode *current;
@@ -132,4 +199,6 @@ void AvlMap_clear(AvlMap *self) {
             }
         }
     }
+
+    self->len = 0;
 }

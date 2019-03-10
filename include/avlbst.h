@@ -51,7 +51,7 @@ typedef void (*AvlDeleter)(void*, void*, void*);
 /**
  *  Initializes an empty AvlMap.
  *
- *  @param self Must not be NULL. Must have not been initialized yet.
+ *  @param self Must not be NULL. Must not be initialized.
  *  @param compare Must not be NULL. Will be used to compare keys as if
  *                 by compare(lhs, rhs, compare_arg). Return values
  *                 should have the same meaning as strcmp and should
@@ -66,14 +66,25 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
                  AvlDeleter deleter, void *deleter_arg);
 
 /**
+ *  Inserts a (key, value) pair into an AvlMap, taking ownership of
+ *  them.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param key If a key in this AvlMap compares equal, ownership will
+ *             remain with the caller and will not be transferred to
+ *             the AvlMap.
+ *  @returns The previous value associated with key, if it exists.
+ *           Ownership is transferred back to the caller in this case.
+ */
+void* AvlMap_insert(AvlMap *self, void *key, void *value);
+
+/**
  *  Destroys an AvlMap, removing all members.
  *
  *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
  *  complexity.
  *
- *  @param self Must not be NULL. Must have been initialized by
- *              AvlMap_init and must not have been destroyed yet by
- *              AvlMap_destroy.
+ *  @param self Must not be NULL. Must be initialized.
  */
 void AvlMap_destroy(AvlMap *self);
 
@@ -82,8 +93,7 @@ void AvlMap_destroy(AvlMap *self);
  *
  *  Runs in O(1) stack frames and O(n) time complexity.
  *
- *  @param self Must not be NULL. Must have been initialized by
- *              AvlMap_init.
+ *  @param self Must not be NULL. Must be initialized.
  */
 void AvlMap_clear(AvlMap *self);
 
