@@ -75,7 +75,9 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
 void AvlMap_destroy(AvlMap *self);
 
 /**
- *  Empties out an AvlMap, freeing all resources used.
+ *  Clears the map, removing all members.
+ *
+ *  Runs in O(1) stack frames and O(n) space complexity.
  *
  *  @param self Must not be NULL. Must have been initialized by
  *              AvlMap_init.
