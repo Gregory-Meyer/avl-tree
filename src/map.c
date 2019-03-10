@@ -25,10 +25,19 @@
  */
 
 #include <avlbst.h>
-#include "node.h"
 
 #include <assert.h>
 #include <stdlib.h>
+
+/** AVL Tree node. */
+struct AvlNode {
+    AvlNode *left;
+    AvlNode *right;
+    void *key;
+    void *value;
+    /* If not one of (-1, 0, 1), needs to be rebalanced. */
+    signed char balance_factor;
+};
 
 /**
  *  Initializes an empty AvlMap.
@@ -59,7 +68,10 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
 }
 
 /**
- *  Destroys an AvlMap, freeing all resources used.
+ *  Destroys an AvlMap, removing all members.
+ *
+ *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
+ *  complexity.
  *
  *  @param self Must not be NULL. Must have been initialized by
  *              AvlMap_init and must not have been destroyed yet by
@@ -72,7 +84,9 @@ void AvlMap_destroy(AvlMap *self) {
 }
 
 /**
- *  Empties out an AvlMap, freeing all resources used.
+ *  Clears the map, removing all members.
+ *
+ *  Runs in O(1) stack frames and O(n) time complexity.
  *
  *  @param self Must not be NULL. Must have been initialized by
  *              AvlMap_init.
