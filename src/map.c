@@ -30,6 +30,7 @@
 #include "node_stack.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -58,8 +59,8 @@ struct AvlNode {
  *                 if by deleter(key, value, deleter_arg).
  *  @param deleter_arg Passed to deleter when invoked.
  */
-void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
-                 AvlDeleter deleter, void *deleter_arg) {
+void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
+                AvlDeleter deleter, void *deleter_arg) {
     assert(self);
     assert(compare);
     assert(deleter);
@@ -72,7 +73,79 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
     self->deleter_arg = deleter_arg;
 }
 
+/**
+ *  Drops an AvlMap, removing all members.
+ *
+ *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
+ *  complexity.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ */
+void AvlMap_drop(AvlMap *self) {
+    assert(self);
+
+    AvlMap_clear(self);
+}
+
+static AvlNode* find(const AvlMap *self, const void *key);
+
+static void* value(AvlNode *node);
+
+/**
+ *  @param self Must not be NULL. Must be initialized.
+ *  @returns A pointer to the value associated with key. If no such
+ *           value is in self, NULL.
+ */
+const void* AvlMap_get(const AvlMap *self, const void *key) {
+    assert(self);
+
+    return value(find(self, key));
+}
+
+/**
+ *  @param self Must not be NULL. Must be initialized.
+ *  @returns A mutable pointer to the value associated with key. If no
+ *           such value is in self, NULL.
+ */
+void* AvlMap_get_mut(AvlMap *self, const void *key) {
+    assert(self);
+
+    return value(find(self, key));
+}
+
+static AvlNode* find(const AvlMap *self, const void *key) {
+    AvlNode *current;
+
+    assert(self);
+
+    current = self->root;
+
+    while (current) {
+        const int compare = self->compare(key, current->key, self->compare_arg);
+
+        if (compare == 0) {
+            return current;
+        } else if (compare < 0) {
+            current = current->left;
+        } else { /* compare > 0 */
+            current = current->right;
+        }
+    }
+
+    return NULL;
+}
+
+static void* value(AvlNode *node) {
+    if (!node) {
+        return NULL;
+    }
+
+    return node->value;
+}
+
 static AvlNode* alloc_node(void *key, void *value);
+
+static size_t max_height(size_t num_nodes);
 
 static void rebalance(AvlMap *const self, const NodeStack *stack);
 
@@ -100,13 +173,13 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
         AvlNode *current = self->root;
         void *previous_value = NULL;
 
-        NodeStack_init(&stack);
+        NodeStack_with_capacity(&stack, max_height(self->len) + 1);
 
         while (1) {
             const int compare = self->compare(key, current->key, self->compare_arg);
 
             if (compare == 0) { /* key == current */
-                NodeStack_destroy(&stack);
+                NodeStack_drop(&stack);
 
                 previous_value = current->value;
                 current->value = value;
@@ -130,7 +203,7 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
         }
 
         rebalance(self, &stack);
-        NodeStack_destroy(&stack);
+        NodeStack_drop(&stack);
 
         return NULL;
     }
@@ -144,6 +217,10 @@ static AvlNode* alloc_node(void *key, void *value) {
     node->value = value;
 
     return node;
+}
+
+static size_t max_height(size_t num_nodes) {
+    return (size_t) ceil(1.44 * log((double) num_nodes) / log(2.0));
 }
 
 static int update_height(AvlNode *node);
@@ -284,20 +361,6 @@ static int height(AvlNode *node) {
 }
 
 /**
- *  Destroys an AvlMap, removing all members.
- *
- *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
- *  complexity.
- *
- *  @param self Must not be NULL. Must be initialized.
- */
-void AvlMap_destroy(AvlMap *self) {
-    assert(self);
-
-    AvlMap_clear(self);
-}
-
-/**
  *  Clears the map, removing all members.
  *
  *  Runs in O(1) stack frames and O(n) time complexity.
@@ -314,7 +377,7 @@ void AvlMap_clear(AvlMap *self) {
         return;
     }
 
-    NodeStack_init(&to_delete);
+    NodeStack_with_capacity(&to_delete, self->len);
 
     /* Morris in-order tree traversal */
     current = self->root;
@@ -349,5 +412,5 @@ void AvlMap_clear(AvlMap *self) {
         free(current);
     }
 
-    NodeStack_destroy(&to_delete);
+    NodeStack_drop(&to_delete);
 }
