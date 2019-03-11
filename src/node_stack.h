@@ -40,11 +40,7 @@ extern "C" {
  *  should take care to ensure that the owner of these nodes outlives
  *  this NodeStack.
  */
-typedef struct NodeStack {
-    AvlNode **data;
-    size_t len;
-    size_t capacity;
-} NodeStack;
+typedef struct NodeStack NodeStack;
 
 /**
  *  Initializes an empty NodeStack.
@@ -81,6 +77,30 @@ void NodeStack_push(NodeStack *self, AvlNode *node);
  *           NodeStack was empty, NULL.
  */
 AvlNode* NodeStack_pop(NodeStack *self);
+
+/**
+ *  Retrieves the AvlNode that is index elements from the top of this
+ *  NodeStack, if there is one.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param index The index of the element to fetch, where 0 is the top.
+ *  @returns The AvlNode that was index elements from the top of this
+ *           NodeStack. If no such element exists, NULL.
+ */
+AvlNode* NodeStack_get(const NodeStack *self, size_t index);
+
+/**
+ *  LIFO queue of AvlNodes.
+ *
+ *  NodeStack does not own the AvlNodes it holds pointers to, so users
+ *  should take care to ensure that the owner of these nodes outlives
+ *  this NodeStack.
+ */
+struct NodeStack {
+    AvlNode **data;
+    size_t len;
+    size_t capacity;
+};
 
 #ifdef __cplusplus
 } // extern "C"

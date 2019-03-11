@@ -101,3 +101,22 @@ AvlNode* NodeStack_pop(NodeStack *self) {
 
     return self->data[self->len];
 }
+
+/**
+ *  Retrieves the AvlNode that is index elements from the top of this
+ *  NodeStack, if there is one.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param index The index of the element to fetch, where 0 is the top.
+ *  @returns The AvlNode that was index elements from the top of this
+ *           NodeStack. If no such element exists, NULL.
+ */
+AvlNode* NodeStack_get(const NodeStack *self, size_t index) {
+    assert(self);
+
+    if (self->len < index) {
+        return NULL;
+    }
+
+    return self->data[self->len - index];
+}
