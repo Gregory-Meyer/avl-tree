@@ -90,12 +90,14 @@ void NodeStack_push(NodeStack *self, AvlNode *node) {
     if (self->capacity == self->len) {
         if (!self->data) {
             assert(self->len == 0);
+            assert(self->capacity == 0);
 
             self->data = checked_malloc(sizeof(AvlNode*) * 8);
             self->capacity = 8;
         } else {
-            assert(self->capacity >= 8);
+            assert(self->capacity != 0);
 
+            ++self->capacity; /* if capacity = 1, below is a noop */
             self->capacity *= 3;
             self->capacity /= 2;
 
