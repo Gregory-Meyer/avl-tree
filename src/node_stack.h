@@ -47,14 +47,22 @@ typedef struct NodeStack NodeStack;
  *
  *  @param self Must not be NULL. Must not be initialized.
  */
-void NodeStack_init(NodeStack *self);
+void NodeStack_new(NodeStack *self);
 
 /**
- *  Destroys a NodeStack, deallocating all owned resources.
+ *  Initializes an empty NodeStack with space for at least size
+ *  elements.
  *
  *  @param self Must not be NULL. Must not be initialized.
  */
-void NodeStack_destroy(NodeStack *self);
+void NodeStack_with_capacity(NodeStack *self, size_t size);
+
+/**
+ *  Drops a NodeStack, deallocating all owned resources.
+ *
+ *  @param self Must not be NULL. Must not be initialized.
+ */
+void NodeStack_drop(NodeStack *self);
 
 /**
  *  Pushes an AvlNode to the top of this NodeStack.
