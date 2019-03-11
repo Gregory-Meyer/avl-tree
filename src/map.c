@@ -74,7 +74,7 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
 
 static AvlNode* alloc_node(void *key, void *value);
 
-static void rebalance(NodeStack *nodes);
+static void rebalance(AvlMap *const self, const NodeStack *stack);
 
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
@@ -100,28 +100,28 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
         AvlNode *current = self->root;
         void *previous_value = NULL;
 
+        NodeStack_init(&stack);
+
         while (1) {
             const int compare = self->compare(key, current->key, self->compare_arg);
 
             if (compare == 0) { /* key == current */
+                NodeStack_destroy(&stack);
+
                 previous_value = current->value;
                 current->value = value;
 
-                break;
-            } else if (compare < 0) { /* key < current */
-                if (current->left) {
-                    current = current->left;
-                } else {
-                    current->left = alloc_node(key, value);
-                    ++self->len;
-
-                    break;
-                }
+                return previous_value;
             } else {
-                if (current->right) {
-                    current = current->right;
+                AvlNode **const to_compare = (compare < 0) ? &current->left : &current->right;
+                NodeStack_push(&stack, current);
+
+                if (*to_compare) {
+                    current = *to_compare;
                 } else {
-                    current->right = alloc_node(key, value);
+                    AvlNode *const inserted = alloc_node(key, value);
+                    NodeStack_push(&stack, inserted);
+                    *to_compare = inserted;
                     ++self->len;
 
                     break;
@@ -129,14 +129,7 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             }
         }
 
-        if (previous_value) { /* no node inserted */
-            NodeStack_destroy(&stack);
-
-            return previous_value;
-        }
-
-        rebalance(&stack);
-
+        rebalance(self, &stack);
         NodeStack_destroy(&stack);
 
         return NULL;
@@ -153,42 +146,133 @@ static AvlNode* alloc_node(void *key, void *value) {
     return node;
 }
 
-static int height(AvlNode *node);
+static int update_height(AvlNode *node);
 
-static void rebalance(NodeStack *stack) {
-    typedef enum ParentPath {
-        NOPARENT,
-        LEFT,
-        RIGHT,
-        LEFTLEFT,
-        LEFTRIGHT,
-        RIGHTLEFT,
-        RIGHTRIGHT
-    } ParentPath;
+static AvlNode* rotate(AvlNode *top, AvlNode *middle, AvlNode *bottom);
 
+static void rebalance(AvlMap *const self, const NodeStack *stack) {
     AvlNode *current;
+    size_t index;
 
+    assert(self);
     assert(stack);
 
-    for (current = NodeStack_pop(stack); current;) {
-        AvlNode *const left = current->left;
-        AvlNode *const right = current->right;
+    for (index = 0, current = NodeStack_get(stack, index); current;
+         current = NodeStack_get(stack, ++index)) {
+        const int balance_factor = update_height(current);
 
-        const int left_height = height(current->left);
-        const int right_height = height(current->right);
+        if (balance_factor == -2 || balance_factor == 2) {
+            AvlNode *const parent = NodeStack_get(stack, index + 1);
 
-        const int balance_factor = right_height - left_height;
+            AvlNode *const top = current;
+            AvlNode *const middle = NodeStack_get(stack, index - 1);
+            AvlNode *const bottom = NodeStack_get(stack, index - 2);
 
-        current->height = MAX(left_height, right_height) + 1;
+            AvlNode *const new_root = rotate(top, middle, bottom);
 
-        if (balance_factor == -2 || balance_factor == 2) { /* uh oh */
-            AvlNode *const parent = NodeStack_pop(stack);
+            AvlNode **root_to_set;
+            if (parent) {
+                root_to_set = (parent->left == top) ? &parent->left : &parent->right;
+            } else {
+                root_to_set = &self->root;
+            }
 
-            current = parent;
-        } else {
-            current = NodeStack_pop(stack);
+            *root_to_set = new_root;
         }
     }
+}
+
+static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom);
+
+static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom);
+
+static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom);
+
+static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom);
+
+static AvlNode* rotate(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
+    assert(top);
+    assert(middle);
+    assert(bottom);
+    assert(top->left == middle || top->right == middle);
+    assert(middle->left == bottom || middle->right == bottom);
+
+    if (top->left == middle) {
+        if (middle->left == bottom) { /* left left */
+            return rotate_right(top, middle);
+        } else { /* left right, middle->right == bottom */
+            return rotate_leftright(top, middle, bottom);
+        }
+    } else { /* top->right == middle */
+        if (middle->left == bottom) { /* right left */
+            return rotate_rightleft(top, middle, bottom);
+        } else { /* right right, middle->right == bottom */
+            return rotate_left(top, middle);
+        }
+    }
+}
+
+static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
+    assert(top);
+    assert(middle);
+    assert(bottom);
+    assert(top->left == middle);
+    assert(middle->right == bottom);
+
+    top->left = rotate_left(middle, bottom);
+
+    return rotate_right(top, bottom);
+}
+
+static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
+    assert(top);
+    assert(middle);
+    assert(bottom);
+    assert(top->right == middle);
+    assert(middle->left == bottom);
+
+    top->right = rotate_right(middle, bottom);
+
+    return rotate_left(top, bottom);
+}
+
+static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom) {
+    assert(top);
+    assert(bottom);
+    assert(top->right == bottom);
+
+    top->right = bottom->left;
+    bottom->left = top;
+    update_height(top); /* top is now bottom */
+    update_height(bottom); /* bottom is now top */
+
+    return bottom;
+}
+
+static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
+    assert(top);
+    assert(bottom);
+    assert(top->left == bottom);
+
+    top->left = bottom->right;
+    bottom->right = top;
+    update_height(top); /* top is now bottom */
+    update_height(bottom); /* bottom is now top */
+
+    return bottom;
+}
+
+static int height(AvlNode *node);
+
+static int update_height(AvlNode *node) {
+    const int left_height = height(node->left);
+    const int right_height = height(node->right);
+
+    const int balance_factor = right_height - left_height;
+
+    node->height = MAX(left_height, right_height) + 1;
+
+    return balance_factor;
 }
 
 static int height(AvlNode *node) {
@@ -222,6 +306,7 @@ void AvlMap_destroy(AvlMap *self) {
  */
 void AvlMap_clear(AvlMap *self) {
     AvlNode *current;
+    NodeStack to_delete;
 
     assert(self);
 
@@ -229,16 +314,14 @@ void AvlMap_clear(AvlMap *self) {
         return;
     }
 
+    NodeStack_init(&to_delete);
+
     /* Morris in-order tree traversal */
     current = self->root;
     while (current) {
         if (!current->left) {
-            AvlNode *const next = current->right;
-
-            self->deleter(current->key, current->value, self->deleter_arg);
-            free(current);
-
-            current = next;
+            NodeStack_push(&to_delete, current);
+            current = current->right;
         } else {
             /* rightmost node of tree with root current->left */
             AvlNode *predecessor = current->left;
@@ -251,16 +334,20 @@ void AvlMap_clear(AvlMap *self) {
                 predecessor->right = current;
                 current = current->left;
             } else { /* predecessor->right == current */
-                AvlNode *const next = current->right;
-
-                self->deleter(current->key, current->value, self->deleter_arg);
-                free(current);
-
+                NodeStack_push(&to_delete, current);
                 predecessor->right = NULL;
-                current = next;
+                current = current->right;
             }
         }
     }
 
     self->len = 0;
+    self->root = NULL;
+
+    while (current = NodeStack_pop(&to_delete), current) {
+        self->deleter(current->key, current->value, self->deleter_arg);
+        free(current);
+    }
+
+    NodeStack_destroy(&to_delete);
 }
