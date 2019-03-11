@@ -20,7 +20,7 @@ if(AVLBST_BUILD_TESTS)
 
     find_package(Catch2 REQUIRED)
 
-    add_executable(test_avlbst test/runner.cpp test/insert.spec.cpp)
+    add_executable(test_avlbst test/runner.cpp test/get.spec.cpp test/insert.spec.cpp)
     target_link_libraries(test_avlbst Catch2::Catch2 avlbst)
 
     include(CTest)
