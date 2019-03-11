@@ -36,18 +36,40 @@
  *
  *  @param self Must not be NULL. Must not be initialized.
  */
-void NodeStack_init(NodeStack *self) {
+void NodeStack_new(NodeStack *self) {
+    assert(self);
+
     self->data = NULL;
     self->len = 0;
     self->capacity = 0;
 }
 
 /**
- *  Destroys a NodeStack, deallocating all owned resources.
+ *  Initializes an empty NodeStack with space for at least size
+ *  elements.
  *
  *  @param self Must not be NULL. Must not be initialized.
  */
-void NodeStack_destroy(NodeStack *self) {
+void NodeStack_with_capacity(NodeStack *self, size_t size) {
+    assert(self);
+
+    if (size == 0) {
+        NodeStack_new(self);
+
+        return;
+    }
+
+    self->data = checked_malloc(sizeof(AvlNode*) * size);
+    self->len = 0;
+    self->capacity = size;
+}
+
+/**
+ *  Drops a NodeStack, deallocating all owned resources.
+ *
+ *  @param self Must not be NULL. Must not be initialized.
+ */
+void NodeStack_drop(NodeStack *self) {
     free(self->data);
 }
 
