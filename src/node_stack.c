@@ -72,10 +72,12 @@ void NodeStack_push(NodeStack *self, AvlNode *node) {
             self->data = checked_malloc(sizeof(AvlNode*) * 8);
             self->capacity = 8;
         } else {
+            assert(self->capacity >= 8);
+
             self->capacity *= 3;
             self->capacity /= 2;
 
-            self->data = checked_realloc(self->data, self->capacity);
+            self->data = checked_realloc(self->data, sizeof(AvlNode*) * self->capacity);
         }
     }
 
@@ -114,9 +116,9 @@ AvlNode* NodeStack_pop(NodeStack *self) {
 AvlNode* NodeStack_get(const NodeStack *self, size_t index) {
     assert(self);
 
-    if (self->len < index) {
+    if (self->len <= index) {
         return NULL;
     }
 
-    return self->data[self->len - index];
+    return self->data[self->len - index - 1];
 }
