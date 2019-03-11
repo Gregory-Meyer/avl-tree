@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include_directories(include src)
 
-add_library(avlbst STATIC src/map.c)
+add_library(avlbst STATIC src/map.c src/mem.c src/node_stack.c)
 
 option(AVLBST_BUILD_TESTS "Build tests for libavlbst." ON)
 if(AVLBST_BUILD_TESTS)
