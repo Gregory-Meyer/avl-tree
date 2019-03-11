@@ -56,7 +56,7 @@ TEST_CASE("string insertion") {
     REQUIRE(map.insert("qux", 20));
 }
 
-constexpr int NUM_INSERTIONS = 4096;
+constexpr int NUM_INSERTIONS = 512;
 
 TEST_CASE("sorted insertion") {
     avl::Map<int, int> map;
@@ -87,39 +87,6 @@ TEST_CASE("random insertion") {
 
         for (int j : inserted) {
             REQUIRE(map.insert(j, j));
-        }
-    }
-}
-
-TEST_CASE("stdlib sorted insertion") {
-    std::map<int, int> map;
-    std::vector<int> inserted;
-
-    for (int i = 0; i < NUM_INSERTIONS; ++i) {
-        REQUIRE(map.insert({i, i}).second);
-        inserted.push_back(i);
-
-        for (int j : inserted) {
-            REQUIRE_FALSE(map.insert({j, j}).second);
-        }
-    }
-}
-
-TEST_CASE("stdlib random insertion") {
-    std::map<int, int> map;
-
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
-    std::shuffle(to_insert.begin(), to_insert.end(), std::mt19937());
-
-    std::vector<int> inserted;
-
-    for (int i : to_insert) {
-        REQUIRE(map.insert({i, i}).second);
-        inserted.push_back(i);
-
-        for (int j : inserted) {
-            REQUIRE_FALSE(map.insert({j, j}).second);
         }
     }
 }
