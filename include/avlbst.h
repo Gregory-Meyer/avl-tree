@@ -62,8 +62,32 @@ typedef void (*AvlDeleter)(void*, void*, void*);
  *                 if by deleter(key, value, deleter_arg).
  *  @param deleter_arg Passed to deleter when invoked.
  */
-void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
-                 AvlDeleter deleter, void *deleter_arg);
+void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
+                AvlDeleter deleter, void *deleter_arg);
+
+/**
+ *  Drops an AvlMap, removing all members.
+ *
+ *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
+ *  complexity.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ */
+void AvlMap_drop(AvlMap *self);
+
+/**
+ *  @param self Must not be NULL. Must be initialized.
+ *  @returns A pointer to the value associated with key. If no such
+ *           value is in self, NULL.
+ */
+const void* AvlMap_get(const AvlMap *self, const void *key);
+
+/**
+ *  @param self Must not be NULL. Must be initialized.
+ *  @returns A mutable pointer to the value associated with key. If no
+ *           such value is in self, NULL.
+ */
+void* AvlMap_get_mut(AvlMap *self, const void *key);
 
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
@@ -77,16 +101,6 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
  *           Ownership is transferred back to the caller in this case.
  */
 void* AvlMap_insert(AvlMap *self, void *key, void *value);
-
-/**
- *  Destroys an AvlMap, removing all members.
- *
- *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
- *  complexity.
- *
- *  @param self Must not be NULL. Must be initialized.
- */
-void AvlMap_destroy(AvlMap *self);
 
 /**
  *  Clears the map, removing all members.
