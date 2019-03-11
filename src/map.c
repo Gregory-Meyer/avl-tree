@@ -26,9 +26,14 @@
 
 #include <avlbst.h>
 
+#include "mem.h"
+#include "node_stack.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
 
 /** AVL Tree node. */
 struct AvlNode {
@@ -36,8 +41,7 @@ struct AvlNode {
     AvlNode *right;
     void *key;
     void *value;
-    /* If not one of (-1, 0, 1), needs to be rebalanced. */
-    signed char balance_factor;
+    int height; /* 0 <= height <= 64 due to AVL properties */
 };
 
 /**
@@ -70,6 +74,8 @@ void AvlMap_init(AvlMap *self, AvlComparator compare, void *compare_arg,
 
 static AvlNode* alloc_node(void *key, void *value);
 
+static void rebalance(NodeStack *nodes);
+
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
  *  them.
@@ -90,16 +96,18 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 
         return NULL;
     } else {
+        NodeStack stack;
         AvlNode *current = self->root;
+        void *previous_value = NULL;
 
         while (1) {
             const int compare = self->compare(key, current->key, self->compare_arg);
 
             if (compare == 0) { /* key == current */
-                AvlNode *const previous = current->value;
+                previous_value = current->value;
                 current->value = value;
 
-                return previous;
+                break;
             } else if (compare < 0) { /* key < current */
                 if (current->left) {
                     current = current->left;
@@ -107,34 +115,88 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
                     current->left = alloc_node(key, value);
                     ++self->len;
 
-                    return NULL;
+                    break;
                 }
-            } else { /* compare > 0, key > current */
+            } else {
                 if (current->right) {
                     current = current->right;
                 } else {
                     current->right = alloc_node(key, value);
                     ++self->len;
 
-                    return NULL;
+                    break;
                 }
             }
         }
+
+        if (previous_value) { /* no node inserted */
+            NodeStack_destroy(&stack);
+
+            return previous_value;
+        }
+
+        rebalance(&stack);
+
+        NodeStack_destroy(&stack);
+
+        return NULL;
     }
 }
 
 static AvlNode* alloc_node(void *key, void *value) {
-    AvlNode *const node = (AvlNode*) calloc(1, sizeof(AvlNode));
+    AvlNode *const node = (AvlNode*) checked_calloc(1, sizeof(AvlNode));
 
-    if (!node) { /* highly unlikely, but sure */
-        fprintf(stderr, "libavlbst: alloc_node: calloc() returned NULL");
-        abort();
-    }
-
+    node->height = 1;
     node->key = key;
     node->value = value;
 
     return node;
+}
+
+static int height(AvlNode *node);
+
+static void rebalance(NodeStack *stack) {
+    typedef enum ParentPath {
+        NOPARENT,
+        LEFT,
+        RIGHT,
+        LEFTLEFT,
+        LEFTRIGHT,
+        RIGHTLEFT,
+        RIGHTRIGHT
+    } ParentPath;
+
+    AvlNode *current;
+
+    assert(stack);
+
+    for (current = NodeStack_pop(stack); current;) {
+        AvlNode *const left = current->left;
+        AvlNode *const right = current->right;
+
+        const int left_height = height(current->left);
+        const int right_height = height(current->right);
+
+        const int balance_factor = right_height - left_height;
+
+        current->height = MAX(left_height, right_height) + 1;
+
+        if (balance_factor == -2 || balance_factor == 2) { /* uh oh */
+            AvlNode *const parent = NodeStack_pop(stack);
+
+            current = parent;
+        } else {
+            current = NodeStack_pop(stack);
+        }
+    }
+}
+
+static int height(AvlNode *node) {
+    if (!node) {
+        return 0;
+    } else {
+        return node->height;
+    }
 }
 
 /**
