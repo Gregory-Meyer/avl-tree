@@ -361,6 +361,18 @@ static int height(AvlNode *node) {
 }
 
 /**
+ *  Removes the value associated with a key as well as the key that
+ *  compared equal.
+ *
+ *  @param self Must not be NULL.
+ *  @returns Nonzero if a (key, value) pair was removed from this map,
+ *           zero otherwise.
+ */
+int AvlMap_remove(AvlMap *self, const void *key);
+
+static void drop(AvlMap *self, AvlNode *node);
+
+/**
  *  Clears the map, removing all members.
  *
  *  Runs in O(1) stack frames and O(n) time complexity.
@@ -369,7 +381,6 @@ static int height(AvlNode *node) {
  */
 void AvlMap_clear(AvlMap *self) {
     AvlNode *current;
-    NodeStack to_delete;
 
     assert(self);
 
@@ -377,14 +388,14 @@ void AvlMap_clear(AvlMap *self) {
         return;
     }
 
-    NodeStack_with_capacity(&to_delete, self->len);
-
     /* Morris in-order tree traversal */
     current = self->root;
     while (current) {
         if (!current->left) {
-            NodeStack_push(&to_delete, current);
-            current = current->right;
+            AvlNode *const next = current->right;
+
+            drop(self, current);
+            current = next;
         } else {
             /* rightmost node of tree with root current->left */
             AvlNode *predecessor = current->left;
@@ -397,20 +408,19 @@ void AvlMap_clear(AvlMap *self) {
                 predecessor->right = current;
                 current = current->left;
             } else { /* predecessor->right == current */
-                NodeStack_push(&to_delete, current);
+                AvlNode *const next = current->right;
+                drop(self, current);
                 predecessor->right = NULL;
-                current = current->right;
+                current = next;
             }
         }
     }
 
     self->len = 0;
     self->root = NULL;
+}
 
-    while (current = NodeStack_pop(&to_delete), current) {
-        self->deleter(current->key, current->value, self->deleter_arg);
-        free(current);
-    }
-
-    NodeStack_drop(&to_delete);
+static void drop(AvlMap *self, AvlNode *node) {
+    self->deleter(node->key, node->value, self->deleter_arg);
+    free(node);
 }

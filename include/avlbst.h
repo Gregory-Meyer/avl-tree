@@ -103,6 +103,16 @@ void* AvlMap_get_mut(AvlMap *self, const void *key);
 void* AvlMap_insert(AvlMap *self, void *key, void *value);
 
 /**
+ *  Removes the value associated with a key as well as the key that
+ *  compared equal.
+ *
+ *  @param self Must not be NULL.
+ *  @returns Nonzero if a (key, value) pair was removed from this map,
+ *           zero otherwise.
+ */
+int AvlMap_remove(AvlMap *self, const void *key);
+
+/**
  *  Clears the map, removing all members.
  *
  *  Runs in O(1) stack frames and O(n) time complexity.
