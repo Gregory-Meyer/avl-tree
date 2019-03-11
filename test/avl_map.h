@@ -34,11 +34,11 @@ template <typename K, typename V, typename C = std::less<K>>
 class Map {
 public:
     Map() noexcept {
-        AvlMap_init(&impl_, Map::comparator, &comparator_, Map::deleter, nullptr);
+        AvlMap_new(&impl_, Map::comparator, &comparator_, Map::deleter, nullptr);
     }
 
     ~Map() {
-        AvlMap_destroy(&impl_);
+        AvlMap_drop(&impl_);
     }
 
     bool insert(const K &key, const V &value) {
@@ -55,6 +55,14 @@ public:
         } else {
             return false;
         }
+    }
+
+    V* get(const K &key) noexcept {
+        return static_cast<V*>(AvlMap_get_mut(&impl_, &key));
+    }
+
+    const V* get(const K &key) const noexcept {
+        return static_cast<const V*>(AvlMap_get(&impl_, &key));
     }
 
     void clear() noexcept {
