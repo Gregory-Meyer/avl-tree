@@ -2,7 +2,7 @@
 
 set -e
 
-CXXFLAGS="-pedantic -Wall -Wcast-qual -Wconversion -Werror -Wextra -Wshadow -Wno-unused-command-line-argument"
+CXXFLAGS="-pedantic -Wall -Wcast-qual -Wconversion -Werror -Wextra -Wshadow"
 CFLAGS="${CXXFLAGS} -Wmissing-prototypes"
 LDFLAGS=""
 
@@ -50,8 +50,8 @@ case "${TOOLCHAIN}" in
     CC="clang"
     CXX="clang++"
     LD="ld.lld"
-    CFLAGS="${CFLAGS} -fuse-ld=lld"
-    CXXFLAGS="${CXXFLAGS} -fuse-ld=lld"
+    CFLAGS="${CFLAGS} -fuse-ld=lld -Wno-unused-command-line-argument"
+    CXXFLAGS="${CXXFLAGS} -fuse-ld=lld -Wno-unused-command-line-argument"
     ;;
 "gnu")
     CC="gcc"
