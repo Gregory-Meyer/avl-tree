@@ -9,5 +9,5 @@ env:
   - TEST_SUITE=release:gnu
 install:
   - docker pull gregjm/cpp-build
-  - docker build --tag bloodhound .
+  - docker build --privileged --tag bloodhound .
 script: docker run --rm bloodhound "${TEST_SUITE}"
