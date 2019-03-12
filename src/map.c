@@ -42,7 +42,7 @@ struct AvlNode {
     AvlNode *right;
     void *key;
     void *value;
-    int height; /* 0 <= height <= 64 due to AVL properties */
+    signed char height; /* on a 64-bit architecture this is <= 90 */
 };
 
 /**
@@ -347,7 +347,7 @@ static int update_height(AvlNode *node) {
 
     const int balance_factor = right_height - left_height;
 
-    node->height = MAX(left_height, right_height) + 1;
+    node->height = (signed char) MAX(left_height, right_height) + 1;
 
     return balance_factor;
 }
