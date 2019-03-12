@@ -1,5 +1,5 @@
-dist: trusty
-language: cpp
+dist: xenial
+language: c
 cache: ccache
 matrix:
   include:
@@ -23,11 +23,12 @@ matrix:
         apt:
           sources:
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-trusty-7
+            - llvm-toolchain-xenial-7
           packages:
             - clang-7
             - lld-7
-            - apt-get install libc++-7-dev libc++abi-7-dev
+            - libc++-7-dev
+            - libc++abi-7-dev
             - ninja-build
       env:
         - CC='ccache clang-7'
@@ -36,9 +37,20 @@ matrix:
         - CFLAGS='-O3 -DNDEBUG -march=native -flto=thin'
         - CXXFLAGS='-O3 -DNDEBUG -march=native -flto=thin -stdlib=libc++'
         - LDFLAGS='-O3 -flto=thin -fuse-ld=lld -lc++ -lc++abi'
+install:
+  - git clone https://github.com/catchorg/Catch2.git
+  - cd Catch2
+  - mkdir build
+  - cd build
+  - cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
+  - cmake --build . -j `nproc`
+  - cmake --build . --target install
+  - cd ../..
+  - rm -rf Catch2
 script:
   - mkdir -p build
   - cd build
-  - cmake .. -G Ninja -DBLOODHOUND_BUILD_TESTS=ON
+  - cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLOODHOUND_BUILD_TESTS=ON
   - cmake --build . -j `nproc`
   - cmake --build . --target test
+  - cd ..
