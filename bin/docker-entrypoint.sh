@@ -22,14 +22,12 @@ case "$1" in
     CMAKE_BUILD_TYPE="Release"
     CFLAGS="${CFLAGS} -flto=thin -march=native -g -fsanitize=address -fsanitize-address-use-after-scope -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls"
     CXXFLAGS="${CXXFLAGS} -flto=thin -march=native -g -fsanitize=address -fsanitize-address-use-after-scope -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls"
-    LDFLAGS="${LDFLAGS} -flto=thin"
     ;;
 "ubsan")
     TOOLCHAIN="llvm"
     CMAKE_BUILD_TYPE="Release"
     CFLAGS="${CFLAGS} -flto=thin -march=native -g -fsanitize=undefined -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls"
     CXXFLAGS="${CXXFLAGS} -flto=thin -march=native -g -fsanitize=undefined -fno-omit-frame-pointer -fno-inline -fno-optimize-sibling-calls"
-    LDFLAGS="${LDFLAGS} -flto=thin"
     ;;
 "debug:gnu")
     TOOLCHAIN="gnu"
@@ -40,7 +38,6 @@ case "$1" in
     CMAKE_BUILD_TYPE="Release"
     CFLAGS="${CFLAGS} -flto -march=native"
     CXXFLAGS="${CXXFLAGS} -flto -march=native"
-    LDFLAGS="${LDFLAGS} -flto"
     ;;
 *)
     echo "invalid build mode '$1'"
