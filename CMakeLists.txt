@@ -14,8 +14,8 @@ include_directories(include src)
 
 add_library(bloodhound STATIC src/map.c src/mem.c src/node_stack.c)
 
-option(AVLBST_BUILD_TESTS "Build tests for libbloodhound." ON)
-if(AVLBST_BUILD_TESTS)
+option(BLOODHOUND_BUILD_TESTS "Build tests for libbloodhound." ON)
+if(BLOODHOUND_BUILD_TESTS)
     enable_testing()
 
     find_package(Catch2 REQUIRED)
