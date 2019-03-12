@@ -388,32 +388,17 @@ void AvlMap_clear(AvlMap *self) {
         return;
     }
 
-    /* Morris in-order tree traversal */
     current = self->root;
     while (current) {
-        if (!current->left) {
-            AvlNode *const next = current->right;
+        AvlNode *next;
 
-            drop(self, current);
-            current = next;
-        } else {
-            /* rightmost node of tree with root current->left */
-            AvlNode *predecessor = current->left;
-
-            while (predecessor->right && predecessor->right != current) {
-                predecessor = predecessor->right;
-            }
-
-            if (!predecessor->right) {
-                predecessor->right = current;
-                current = current->left;
-            } else { /* predecessor->right == current */
-                AvlNode *const next = current->right;
-                drop(self, current);
-                predecessor->right = NULL;
-                current = next;
-            }
+        while (current->left) {
+            current = rotate_right(current, current->left);
         }
+
+        next = current->right;
+        drop(self, current);
+        current = next;
     }
 
     self->len = 0;
