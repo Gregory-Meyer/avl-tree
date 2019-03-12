@@ -347,7 +347,7 @@ static int update_height(AvlNode *node) {
 
     const int balance_factor = right_height - left_height;
 
-    node->height = (signed char) MAX(left_height, right_height) + 1;
+    node->height = (signed char) (MAX(left_height, right_height) + 1);
 
     return balance_factor;
 }
