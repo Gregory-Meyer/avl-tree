@@ -24,8 +24,8 @@
  *  IN THE SOFTWARE.
  */
 
-#ifndef AVLBST_IMPL_MEM_H
-#define AVLBST_IMPL_MEM_H
+#ifndef BLOODHOUND_IMPL_MEM_H
+#define BLOODHOUND_IMPL_MEM_H
 
 #include <stddef.h>
 

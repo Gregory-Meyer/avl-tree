@@ -24,10 +24,10 @@
  *  IN THE SOFTWARE.
  */
 
-#ifndef AVLBST_IMPL_NODE_STACK_H
-#define AVLBST_IMPL_NODE_STACK_H
+#ifndef BLOODHOUND_IMPL_NODE_STACK_H
+#define BLOODHOUND_IMPL_NODE_STACK_H
 
-#include <avlbst.h>
+#include <bloodhound.h>
 
 #ifdef __cplusplus
 extern "C" {

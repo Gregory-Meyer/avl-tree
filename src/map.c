@@ -24,7 +24,7 @@
  *  IN THE SOFTWARE.
  */
 
-#include <avlbst.h>
+#include <bloodhound.h>
 
 #include "mem.h"
 #include "node_stack.h"
