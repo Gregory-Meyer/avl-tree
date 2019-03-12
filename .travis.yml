@@ -1,56 +1,13 @@
+sudo: required
 dist: xenial
+services: [docker]
 language: c
-cache: ccache
-matrix:
-  include:
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-8
-            - ninja-build
-      env:
-        - CC='ccache gcc-8'
-        - CXX='ccache g++-8'
-        - LD='ld.gold'
-        - CFLAGS='-O3 -DNDEBUG -march=native -flto'
-        - CXXFLAGS='-O3 -DNDEBUG -march=native -flto'
-        - LDFLAGS='-O3 -flto -fuse-ld=gold'
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-            - llvm-toolchain-xenial-7
-          packages:
-            - clang-7
-            - lld-7
-            - libc++-7-dev
-            - libc++abi-7-dev
-            - ninja-build
-      env:
-        - CC='ccache clang-7'
-        - CXX='ccache clang++-7'
-        - LD='ld.lld'
-        - CFLAGS='-O3 -DNDEBUG -march=native -flto=thin'
-        - CXXFLAGS='-O3 -DNDEBUG -march=native -flto=thin -stdlib=libc++'
-        - LDFLAGS='-O3 -flto=thin -fuse-ld=lld -lc++ -lc++abi'
+env:
+  - TEST_SUITE=release
+  - TEST_SUITE=asan
+  - TEST_SUITE=ubsan
+  - TEST_SUITE=release:gnu
 install:
-  - git clone https://github.com/catchorg/Catch2.git
-  - cd Catch2
-  - mkdir build
-  - cd build
-  - cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release
-  - cmake --build . -j `nproc`
-  - cmake --build . --target install
-  - cd ../..
-  - rm -rf Catch2
-script:
-  - mkdir -p build
-  - cd build
-  - cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DBLOODHOUND_BUILD_TESTS=ON
-  - cmake --build . -j `nproc`
-  - cmake --build . --target test
-  - cd ..
+  - docker pull gregjm/cpp-build
+  - docker build --tag bloodhound .
+script: docker run --rm bloodhound "${TEST_SUITE}"

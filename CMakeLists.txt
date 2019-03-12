@@ -18,12 +18,12 @@ option(BLOODHOUND_BUILD_TESTS "Build tests for libbloodhound." ON)
 if(BLOODHOUND_BUILD_TESTS)
     enable_testing()
 
-    find_package(Catch2 REQUIRED)
+    add_subdirectory(./external/Catch2)
 
     add_executable(test_bloodhound test/runner.cpp test/get.spec.cpp test/insert.spec.cpp)
     target_link_libraries(test_bloodhound Catch2::Catch2 bloodhound)
 
     include(CTest)
-    include(Catch)
+    include(external/Catch2/contrib/Catch.cmake)
     catch_discover_tests(test_bloodhound)
 endif()
