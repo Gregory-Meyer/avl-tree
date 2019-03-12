@@ -1,0 +1,44 @@
+dist: trusty
+language: cpp
+cache: ccache
+matrix:
+  include:
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-8
+            - ninja-build
+      env:
+        - CC='ccache gcc-8'
+        - CXX='ccache g++-8'
+        - LD='ld.gold'
+        - CFLAGS='-O3 -DNDEBUG -march=native -flto'
+        - CXXFLAGS='-O3 -DNDEBUG -march=native -flto'
+        - LDFLAGS='-O3 -flto -fuse-ld=gold'
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-7
+          packages:
+            - clang-7
+            - lld-7
+            - apt-get install libc++-7-dev libc++abi-7-dev
+            - ninja-build
+      env:
+        - CC='ccache clang-7'
+        - CXX='ccache clang++-7'
+        - LD='ld.lld'
+        - CFLAGS='-O3 -DNDEBUG -march=native -flto=thin'
+        - CXXFLAGS='-O3 -DNDEBUG -march=native -flto=thin -stdlib=libc++'
+        - LDFLAGS='-O3 -flto=thin -fuse-ld=lld -lc++ -lc++abi'
+script:
+  - mkdir -p build
+  - cd build
+  - cmake .. -G Ninja -DBLOODHOUND_BUILD_TESTS=ON
+  - cmake --build . -j `nproc`
+  - cmake --build . --target test
