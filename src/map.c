@@ -30,8 +30,8 @@
 #include "node_stack.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
@@ -42,7 +42,7 @@ struct AvlNode {
     AvlNode *right;
     void *key;
     void *value;
-    signed char height; /* on a 64-bit architecture this is <= 90 */
+    signed char balance_factor; /* on a 64-bit architecture this is <= 90 */
 };
 
 /**
@@ -145,9 +145,22 @@ static void* value(AvlNode *node) {
 
 static AvlNode* alloc_node(void *key, void *value);
 
-static size_t max_height(size_t num_nodes);
+/* unsigned long is >= 32 bits, 3 words gives at least 96 bits
+ * maximum AVL tree depth is 1.44 log_2(n), so if there are 2^63 - 1
+ * nodes, the tree will be at most 90.72 nodes deep
+ */
+#define NUM_FLAG_WORDS 3
 
-static void rebalance(AvlMap *const self, const NodeStack *stack);
+static void rebalance(AvlMap *self, const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
+                      AvlNode **root_ptr, AvlNode *inserted);
+
+static int getbit(const unsigned long *arr, size_t bit);
+
+static void setbit(unsigned long *arr, size_t bit);
+
+static void clearbit(unsigned long *arr, size_t bit);
+
+static int assert_correct_balance_factors(const AvlNode *node);
 
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
@@ -169,32 +182,40 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 
         return NULL;
     } else {
-        NodeStack stack;
-        AvlNode *current = self->root;
+        unsigned long is_left_flags[NUM_FLAG_WORDS];
+        AvlNode **current_ptr = &self->root;
+        AvlNode **rotate_root_ptr = &self->root;
         void *previous_value = NULL;
-
-        NodeStack_with_capacity(&stack, max_height(self->len) + 1);
+        size_t current_depth_from_root = 0;
 
         while (1) {
+            AvlNode *const current = *current_ptr;
             const int compare = self->compare(key, current->key, self->compare_arg);
 
             if (compare == 0) { /* key == current */
-                NodeStack_drop(&stack);
-
                 previous_value = current->value;
                 current->value = value;
 
                 return previous_value;
             } else {
-                AvlNode **const to_compare = (compare < 0) ? &current->left : &current->right;
-                NodeStack_push(&stack, current);
+                if (current->balance_factor != 0) {
+                    rotate_root_ptr = current_ptr;
+                    current_depth_from_root = 0;
+                }
 
-                if (*to_compare) {
-                    current = *to_compare;
-                } else {
-                    AvlNode *const inserted = alloc_node(key, value);
-                    NodeStack_push(&stack, inserted);
-                    *to_compare = inserted;
+                if (compare < 0) { /* key < current */
+                    setbit(is_left_flags, current_depth_from_root);
+                    current_ptr = &current->left;
+                } else { /* key > current, compare > 0 */
+                    clearbit(is_left_flags, current_depth_from_root);
+                    current_ptr = &current->right;
+                }
+
+                ++current_depth_from_root;
+
+                if (!*current_ptr) {
+                    *current_ptr = alloc_node(key, value);
+                    assert((*current_ptr)->balance_factor == 0);
                     ++self->len;
 
                     break;
@@ -202,8 +223,8 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             }
         }
 
-        rebalance(self, &stack);
-        NodeStack_drop(&stack);
+        rebalance(self, &is_left_flags, rotate_root_ptr, *current_ptr);
+        assert_correct_balance_factors(self->root);
 
         return NULL;
     }
@@ -212,51 +233,64 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 static AvlNode* alloc_node(void *key, void *value) {
     AvlNode *const node = (AvlNode*) checked_calloc(1, sizeof(AvlNode));
 
-    node->height = 1;
+    node->balance_factor = 0;
     node->key = key;
     node->value = value;
 
     return node;
 }
 
-static size_t max_height(size_t num_nodes) {
-    return (size_t) ceil(1.44 * log((double) num_nodes) / log(2.0));
-}
+static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom);
 
-static int update_height(AvlNode *node);
-
-static AvlNode* rotate(AvlNode *top, AvlNode *middle, AvlNode *bottom);
-
-static void rebalance(AvlMap *const self, const NodeStack *stack) {
+static void rebalance(AvlMap *self, const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
+                      AvlNode **root_ptr, AvlNode *inserted) {
     AvlNode *current;
-    size_t index;
+    size_t depth_from_root;
 
     assert(self);
-    assert(stack);
+    assert(is_left_flags);
+    assert(root_ptr);
+    assert(*root_ptr);
 
-    for (index = 0, current = NodeStack_get(stack, index); current;
-         current = NodeStack_get(stack, ++index)) {
-        const int balance_factor = update_height(current);
-
-        if (balance_factor == -2 || balance_factor == 2) {
-            AvlNode *const parent = NodeStack_get(stack, index + 1);
-
-            AvlNode *const top = current;
-            AvlNode *const middle = NodeStack_get(stack, index - 1);
-            AvlNode *const bottom = NodeStack_get(stack, index - 2);
-
-            AvlNode *const new_root = rotate(top, middle, bottom);
-
-            AvlNode **root_to_set;
-            if (parent) {
-                root_to_set = (parent->left == top) ? &parent->left : &parent->right;
-            } else {
-                root_to_set = &self->root;
-            }
-
-            *root_to_set = new_root;
+    for (depth_from_root = 0, current = *root_ptr; current != inserted; ++depth_from_root) {
+        if (getbit(*is_left_flags, depth_from_root)) {
+            --current->balance_factor;
+            current = current->left;
+        } else {
+            ++current->balance_factor;
+            current = current->right;
         }
     }
+
+    *root_ptr = rotate(*root_ptr, getbit(*is_left_flags, 0) ? (*root_ptr)->left
+                                                            : (*root_ptr)->right);
+}
+
+static int getbit(const unsigned long *arr, size_t bit) {
+    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
+
+    const size_t idx = bit / NBITS;
+    const size_t subidx = bit % NBITS;
+
+    return (arr[idx] & (1ul << subidx)) != 0;
+}
+
+static void setbit(unsigned long *arr, size_t bit) {
+    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
+
+    const size_t idx = bit / NBITS;
+    const size_t subidx = bit % NBITS;
+
+    arr[idx] |= (1ul << subidx);
+}
+
+static void clearbit(unsigned long *arr, size_t bit) {
+    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
+
+    const size_t idx = bit / NBITS;
+    const size_t subidx = bit % NBITS;
+
+    arr[idx] &= ~(1ul << subidx);
 }
 
 static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom);
@@ -267,50 +301,116 @@ static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom);
 
 static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom);
 
-static AvlNode* rotate(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
-    assert(top);
-    assert(middle);
-    assert(bottom);
-    assert(top->left == middle || top->right == middle);
-    assert(middle->left == bottom || middle->right == bottom);
+static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom) {
+    AvlNode *root;
 
-    if (top->left == middle) {
-        if (middle->left == bottom) { /* left left */
-            return rotate_right(top, middle);
-        } else { /* left right, middle->right == bottom */
-            return rotate_leftright(top, middle, bottom);
+    assert(top);
+    assert(middle_or_bottom);
+    assert(top->left == middle_or_bottom || top->right == middle_or_bottom);
+
+    if (top->balance_factor == -2) {
+        assert(top->left == middle_or_bottom);
+
+        if (middle_or_bottom->balance_factor == -1) {
+            root = rotate_right(top, middle_or_bottom);
+
+            top->balance_factor = 0;
+            middle_or_bottom->balance_factor = 0;
+        } else { /* middle_or_bottom->balance_factor == 1 */
+            AvlNode *child;
+
+            assert(middle_or_bottom->balance_factor == 1);
+            assert(middle_or_bottom->right);
+
+            child = middle_or_bottom->right;
+            root = rotate_leftright(top, middle_or_bottom, child);
+
+            if (child->balance_factor == -1) {
+                top->balance_factor = 1;
+                middle_or_bottom->balance_factor = 0;
+            } else if (child->balance_factor == 0) {
+                top->balance_factor = 0;
+                middle_or_bottom->balance_factor = 0;
+            } else {
+                assert(child->balance_factor == 1);
+
+                top->balance_factor = 0;
+                middle_or_bottom->balance_factor = -1;
+            }
+
+            child->balance_factor = 0;
         }
-    } else { /* top->right == middle */
-        if (middle->left == bottom) { /* right left */
-            return rotate_rightleft(top, middle, bottom);
-        } else { /* right right, middle->right == bottom */
-            return rotate_left(top, middle);
+    } else if (top->balance_factor == 2) {
+        assert(top->right == middle_or_bottom);
+
+        if (middle_or_bottom->balance_factor == 1) {
+            root = rotate_left(top, middle_or_bottom);
+
+            top->balance_factor = 0;
+            middle_or_bottom->balance_factor = 0;
+        } else { /* middle_or_bottom->balance_factor == -1 */
+            AvlNode *child;
+
+            assert(middle_or_bottom->balance_factor == -1);
+            assert(middle_or_bottom->left);
+
+            child = middle_or_bottom->left;
+            root = rotate_rightleft(top, middle_or_bottom, child);
+
+            if (child->balance_factor == -1) {
+                top->balance_factor = -1;
+                middle_or_bottom->balance_factor = 0;
+            } else if (child->balance_factor == 0) {
+                top->balance_factor = 0;
+                middle_or_bottom->balance_factor = 0;
+            } else {
+                assert(child->balance_factor == 1);
+
+                top->balance_factor = 0;
+                middle_or_bottom->balance_factor = 1;
+            }
+
+            child->balance_factor = 0;
         }
+    } else {
+        root = top;
     }
+
+    return root;
 }
 
 static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
+    AvlNode *root;
+
     assert(top);
     assert(middle);
     assert(bottom);
     assert(top->left == middle);
     assert(middle->right == bottom);
+    assert(top->balance_factor == -2);
+    assert(middle->balance_factor == 1);
 
     top->left = rotate_left(middle, bottom);
+    root = rotate_right(top, bottom);
 
-    return rotate_right(top, bottom);
+    return root;
 }
 
 static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
+    AvlNode *root;
+
     assert(top);
     assert(middle);
     assert(bottom);
     assert(top->right == middle);
     assert(middle->left == bottom);
+    assert(top->balance_factor == 2);
+    assert(middle->balance_factor == -1);
 
     top->right = rotate_right(middle, bottom);
+    root = rotate_left(top, bottom);
 
-    return rotate_left(top, bottom);
+    return root;
 }
 
 static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom) {
@@ -320,8 +420,6 @@ static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom) {
 
     top->right = bottom->left;
     bottom->left = top;
-    update_height(top); /* top is now bottom */
-    update_height(bottom); /* bottom is now top */
 
     return bottom;
 }
@@ -333,30 +431,22 @@ static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
 
     top->left = bottom->right;
     bottom->right = top;
-    update_height(top); /* top is now bottom */
-    update_height(bottom); /* bottom is now top */
 
     return bottom;
 }
 
-static int height(AvlNode *node);
-
-static int update_height(AvlNode *node) {
-    const int left_height = height(node->left);
-    const int right_height = height(node->right);
-
-    const int balance_factor = right_height - left_height;
-
-    node->height = (signed char) (MAX(left_height, right_height) + 1);
-
-    return balance_factor;
-}
-
-static int height(AvlNode *node) {
+static int assert_correct_balance_factors(const AvlNode *node) {
     if (!node) {
         return 0;
     } else {
-        return node->height;
+        const int left_height = assert_correct_balance_factors(node->left);
+        const int right_height = assert_correct_balance_factors(node->right);
+
+        const signed char balance_factor = (signed char) (right_height - left_height);
+
+        assert(node->balance_factor == balance_factor);
+
+        return MAX(left_height, right_height) + 1;
     }
 }
 
