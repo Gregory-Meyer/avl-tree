@@ -151,7 +151,7 @@ static AvlNode* alloc_node(void *key, void *value);
  */
 #define NUM_FLAG_WORDS 3
 
-static void rebalance(AvlMap *self, const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
+static void rebalance(const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
                       AvlNode **root_ptr, AvlNode *inserted);
 
 static int getbit(const unsigned long *arr, size_t bit);
@@ -160,7 +160,12 @@ static void setbit(unsigned long *arr, size_t bit);
 
 static void clearbit(unsigned long *arr, size_t bit);
 
-static int assert_correct_balance_factors(const AvlNode *node);
+#ifdef NDEBUG
+#define assert_correct_balance_factors(N) ((void) 0)
+#else
+#define assert_correct_balance_factors(N) do_assert_balance_factors((N))
+static int do_assert_balance_factors(const AvlNode *node);
+#endif
 
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
@@ -223,7 +228,7 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             }
         }
 
-        rebalance(self, &is_left_flags, rotate_root_ptr, *current_ptr);
+        rebalance(&is_left_flags, rotate_root_ptr, *current_ptr);
         assert_correct_balance_factors(self->root);
 
         return NULL;
@@ -242,12 +247,11 @@ static AvlNode* alloc_node(void *key, void *value) {
 
 static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom);
 
-static void rebalance(AvlMap *self, const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
+static void rebalance(const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
                       AvlNode **root_ptr, AvlNode *inserted) {
     AvlNode *current;
     size_t depth_from_root;
 
-    assert(self);
     assert(is_left_flags);
     assert(root_ptr);
     assert(*root_ptr);
@@ -357,14 +361,14 @@ static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom) {
             child = middle_or_bottom->left;
             root = rotate_rightleft(top, middle_or_bottom, child);
 
-            if (child->balance_factor == -1) {
+            if (child->balance_factor == 1) {
                 top->balance_factor = -1;
                 middle_or_bottom->balance_factor = 0;
             } else if (child->balance_factor == 0) {
                 top->balance_factor = 0;
                 middle_or_bottom->balance_factor = 0;
             } else {
-                assert(child->balance_factor == 1);
+                assert(child->balance_factor == -1);
 
                 top->balance_factor = 0;
                 middle_or_bottom->balance_factor = 1;
@@ -435,7 +439,8 @@ static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
     return bottom;
 }
 
-static int assert_correct_balance_factors(const AvlNode *node) {
+#ifndef NDEBUG
+static int do_assert_balance_factors(const AvlNode *node) {
     if (!node) {
         return 0;
     } else {
@@ -449,6 +454,7 @@ static int assert_correct_balance_factors(const AvlNode *node) {
         return MAX(left_height, right_height) + 1;
     }
 }
+#endif
 
 /**
  *  Removes the value associated with a key as well as the key that
