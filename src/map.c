@@ -151,14 +151,14 @@ static AvlNode* alloc_node(void *key, void *value);
  */
 #define NUM_FLAG_WORDS 3
 
-static void rebalance(const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
+static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
                       AvlNode **root_ptr, AvlNode *inserted);
 
-static int getbit(const unsigned long *arr, size_t bit);
+static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit);
 
-static void setbit(unsigned long *arr, size_t bit);
+static void setbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
 
-static void clearbit(unsigned long *arr, size_t bit);
+static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
 
 #ifdef NDEBUG
 #define assert_correct_balance_factors(N) ((void) 0)
@@ -228,7 +228,7 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             }
         }
 
-        rebalance(&is_left_flags, rotate_root_ptr, *current_ptr);
+        rebalance(is_left_flags, rotate_root_ptr, *current_ptr);
         assert_correct_balance_factors(self->root);
 
         return NULL;
@@ -247,7 +247,7 @@ static AvlNode* alloc_node(void *key, void *value) {
 
 static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom);
 
-static void rebalance(const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
+static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
                       AvlNode **root_ptr, AvlNode *inserted) {
     AvlNode *current;
     size_t depth_from_root;
@@ -257,7 +257,7 @@ static void rebalance(const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
     assert(*root_ptr);
 
     for (depth_from_root = 0, current = *root_ptr; current != inserted; ++depth_from_root) {
-        if (getbit(*is_left_flags, depth_from_root)) {
+        if (getbit(is_left_flags, depth_from_root)) {
             --current->balance_factor;
             current = current->left;
         } else {
@@ -266,33 +266,39 @@ static void rebalance(const unsigned long (*is_left_flags)[NUM_FLAG_WORDS],
         }
     }
 
-    *root_ptr = rotate(*root_ptr, getbit(*is_left_flags, 0) ? (*root_ptr)->left
+    *root_ptr = rotate(*root_ptr, getbit(is_left_flags, 0) ? (*root_ptr)->left
                                                             : (*root_ptr)->right);
 }
 
-static int getbit(const unsigned long *arr, size_t bit) {
+static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
     static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
 
     const size_t idx = bit / NBITS;
     const size_t subidx = bit % NBITS;
+
+    assert(idx < NUM_FLAG_WORDS);
 
     return (arr[idx] & (1ul << subidx)) != 0;
 }
 
-static void setbit(unsigned long *arr, size_t bit) {
+static void setbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
     static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
 
     const size_t idx = bit / NBITS;
     const size_t subidx = bit % NBITS;
+
+    assert(idx < NUM_FLAG_WORDS);
 
     arr[idx] |= (1ul << subidx);
 }
 
-static void clearbit(unsigned long *arr, size_t bit) {
+static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
     static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
 
     const size_t idx = bit / NBITS;
     const size_t subidx = bit % NBITS;
+
+    assert(NUM_FLAG_WORDS);
 
     arr[idx] &= ~(1ul << subidx);
 }
