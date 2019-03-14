@@ -55,7 +55,7 @@ TEST_CASE("string insertion") {
     REQUIRE(map.insert("qux", 20));
 }
 
-constexpr int NUM_INSERTIONS = 512;
+constexpr int NUM_INSERTIONS = 2048;
 
 TEST_CASE("sorted insertion") {
     avl::Map<int, int> map;

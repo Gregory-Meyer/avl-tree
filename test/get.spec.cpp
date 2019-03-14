@@ -34,7 +34,7 @@
 
 #include <catch2/catch.hpp>
 
-constexpr std::size_t NUM_INSERTIONS = 32768;
+constexpr std::size_t NUM_INSERTIONS = 2048;
 
 TEST_CASE("sorted insert, sorted get") {
     avl::Map<int, int> map;
