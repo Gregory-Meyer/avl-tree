@@ -462,6 +462,9 @@ static int do_assert_balance_factors(const AvlNode *node) {
 }
 #endif
 
+static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
+                        unsigned long is_left_flags[NUM_FLAG_WORDS]);
+
 /**
  *  Removes the value associated with a key as well as the key that
  *  compared equal.
@@ -470,7 +473,100 @@ static int do_assert_balance_factors(const AvlNode *node) {
  *  @returns Nonzero if a (key, value) pair was removed from this map,
  *           zero otherwise.
  */
-int AvlMap_remove(AvlMap *self, const void *key);
+int AvlMap_remove(AvlMap *self, const void *key) {
+    NodeStack nodes;
+    unsigned long is_left_flags[NUM_FLAG_WORDS];
+    size_t current_depth = 0;
+    AvlNode **current_ptr;
+
+    assert(self);
+
+    NodeStack_new(&nodes);
+    for (current_ptr = &self->root; *current_ptr; ++current_depth) {
+        AvlNode *const current = *current_ptr;
+        int ordering;
+
+        NodeStack_push(&nodes, current);
+
+        ordering = self->compare(key, current->key, self->compare_arg);
+
+        if (ordering == 0) {
+            break; /* we got em */
+        } else if (ordering < 0 && current->left) {
+            current_ptr = &current->left;
+            setbit(is_left_flags, current_depth);
+        } else if (ordering > 0 && current->right) {
+            current_ptr = &current->right;
+            clearbit(is_left_flags, current_depth);
+        } else {
+            return 0; /* no such key... */
+        }
+    }
+
+    remove_node(self, current_ptr, &nodes, is_left_flags);
+
+    NodeStack_drop(&nodes);
+
+    return 1;
+}
+
+static AvlNode* swap_for_delete(NodeStack *nodes, unsigned long is_left_flags[NUM_FLAG_WORDS],
+                                AvlNode *node_ptr);
+
+static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
+                        unsigned long is_left_flags[NUM_FLAG_WORDS]) {
+    AvlNode *node;
+    AvlNode **left;
+    AvlNode **right;
+
+    assert(self);
+    assert(node_ptr);
+    assert(*node_ptr);
+    assert(nodes);
+
+    node = *node_ptr;
+    left = &node->left;
+    right = &node->right;
+
+    if (*left && *right) {
+        *node_ptr = swap_for_delete(nodes, is_left_flags, *node_ptr);
+    } else if (*left) {
+        *node_ptr = *left;
+        *left = NULL;
+    } else if (*right) {
+        *node_ptr = *right;
+        *right = NULL;
+    } else {
+        *node_ptr = NULL;
+    }
+
+    self->deleter(node->key, node->value, self->deleter_arg);
+    free(node);
+
+    assert_correct_balance_factors(self->root);
+}
+
+/* find inorder sucessor */
+static AvlNode* swap_for_delete(AvlNode *node) {
+    AvlNode **to_swap_ptr;
+    AvlNode *to_swap;
+
+    assert(node);
+    assert(node->left && node->right);
+
+    for (to_swap_ptr = &node->right; (*to_swap_ptr)->left;
+         to_swap_ptr = &(*to_swap_ptr)->left) { }
+
+    to_swap = *to_swap_ptr;
+    *to_swap_ptr = to_swap->right;
+    to_swap->right = node->right;
+    to_swap->left = node->left;
+
+    node->right = NULL;
+    node->left = NULL;
+
+    return to_swap;
+}
 
 static void drop(AvlMap *self, AvlNode *node);
 
