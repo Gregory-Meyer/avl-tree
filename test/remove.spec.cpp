@@ -44,9 +44,18 @@ TEST_CASE("sorted insert, sorted remove") {
         REQUIRE_FALSE(map.insert(i, i));
     }
 
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
+
     for (int i : to_insert) {
         REQUIRE(map.remove(i));
-        REQUIRE_FALSE(map.get(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
@@ -62,9 +71,18 @@ TEST_CASE("sorted insert, random remove") {
     const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
     std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
 
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
+
     for (int i : to_insert) {
         REQUIRE(map.remove(i));
-        REQUIRE_FALSE(map.get(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
@@ -80,10 +98,18 @@ TEST_CASE("random insert, sorted remove") {
     }
 
     std::sort(to_insert.begin(), to_insert.end());
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
 
     for (int i : to_insert) {
         REQUIRE(map.remove(i));
-        REQUIRE_FALSE(map.get(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
@@ -99,10 +125,18 @@ TEST_CASE("random insert, random remove") {
     }
 
     std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
 
     for (int i : to_insert) {
         REQUIRE(map.remove(i));
-        REQUIRE_FALSE(map.get(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
