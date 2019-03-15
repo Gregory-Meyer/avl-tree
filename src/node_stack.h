@@ -97,6 +97,9 @@ AvlNode* NodeStack_pop(NodeStack *self);
  */
 AvlNode* NodeStack_get(const NodeStack *self, size_t index);
 
+/** @returns The number of elements in this NodeStack. */
+size_t NodeStack_len(const NodeStack *self);
+
 /**
  *  LIFO queue of AvlNodes.
  *

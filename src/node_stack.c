@@ -146,3 +146,10 @@ AvlNode* NodeStack_get(const NodeStack *self, size_t index) {
 
     return self->data[self->len - index - 1];
 }
+
+/** @returns The number of elements in this NodeStack. */
+size_t NodeStack_len(const NodeStack *self) {
+    assert(self);
+
+    return self->len;
+}
