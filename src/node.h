@@ -97,6 +97,24 @@ AvlNode* rotate_left(AvlNode *top, AvlNode *bottom);
  */
 AvlNode* rotate_right(AvlNode *top, AvlNode *bottom);
 
+/**
+ *  Executes a left rotation around top.
+ *
+ *  @param top Must not be NULL. Must have bottom as its right child.
+ *  @param bottom Must not be NULL.
+ *  @returns bottom, the new root of the tree.
+ */
+AvlNode* rotate_left_unchecked(AvlNode *top, AvlNode *bottom);
+
+/**
+ *  Executes a right rotation around top.
+ *
+ *  @param top Must not be NULL. Must have bottom as its left child.
+ *  @param bottom Must not be NULL.
+ *  @returns bottom, the new root of the tree.
+ */
+AvlNode* rotate_right_unchecked(AvlNode *top, AvlNode *bottom);
+
 /** AVL Tree node. */
 struct AvlNode {
     AvlNode *left;

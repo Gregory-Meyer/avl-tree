@@ -79,16 +79,12 @@ AvlNode* rotate(AvlNode *root) {
             assert(middle->balance_factor == -1);
             assert(bottom);
 
-            return rotate_leftright(root, middle, bottom);
+            return rotate_rightleft(root, middle, bottom);
         }
     } else {
         return root;
     }
 }
-
-static AvlNode* do_rotate_right(AvlNode *top, AvlNode *bottom);
-
-static AvlNode* do_rotate_left(AvlNode *top, AvlNode *bottom);
 
 /**
  *  Executes a left rotation around middle, then a right rotation
@@ -110,20 +106,20 @@ AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
     assert(middle->right = bottom);
     assert(bottom);
 
-    top->right = do_rotate_right(middle, bottom);
-    do_rotate_left(top, bottom);
+    top->left = rotate_left_unchecked(middle, bottom);
+    rotate_right_unchecked(top, bottom);
 
-    if (bottom->balance_factor == 1) {
-        top->balance_factor = -1;
+    if (bottom->balance_factor == -1) {
+        top->balance_factor = 1;
         middle->balance_factor = 0;
     } else if (bottom->balance_factor == 0) {
         top->balance_factor = 0;
         middle->balance_factor = 0;
     } else {
-        assert(bottom->balance_factor == -1);
+        assert(bottom->balance_factor == 1);
 
         top->balance_factor = 0;
-        middle->balance_factor = 1;
+        middle->balance_factor = -1;
     }
 
     bottom->balance_factor = 0;
@@ -151,20 +147,20 @@ AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
     assert(middle->left = bottom);
     assert(bottom);
 
-    top->left = do_rotate_left(middle, bottom);
-    do_rotate_right(top, bottom);
+    top->right = rotate_right_unchecked(middle, bottom);
+    rotate_left_unchecked(top, bottom);
 
-    if (bottom->balance_factor == -1) {
-        top->balance_factor = 1;
+    if (bottom->balance_factor == 1) {
+        top->balance_factor = -1;
         middle->balance_factor = 0;
     } else if (bottom->balance_factor == 0) {
         top->balance_factor = 0;
         middle->balance_factor = 0;
     } else {
-        assert(bottom->balance_factor == 1);
+        assert(bottom->balance_factor == -1);
 
         top->balance_factor = 0;
-        middle->balance_factor = -1;
+        middle->balance_factor = 1;
     }
 
     bottom->balance_factor = 0;
@@ -187,7 +183,7 @@ AvlNode* rotate_left(AvlNode *top, AvlNode *bottom) {
     assert(bottom);
     assert(bottom->balance_factor == 1);
 
-    do_rotate_left(top, bottom);
+    rotate_left_unchecked(top, bottom);
 
     top->balance_factor = 0;
     bottom->balance_factor = 0;
@@ -210,7 +206,7 @@ AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
     assert(bottom);
     assert(bottom->balance_factor == -1);
 
-    do_rotate_right(top, bottom);
+    rotate_right_unchecked(top, bottom);
 
     top->balance_factor = 0;
     bottom->balance_factor = 0;
@@ -218,7 +214,7 @@ AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
     return bottom;
 }
 
-static AvlNode* do_rotate_left(AvlNode *top, AvlNode *bottom) {
+AvlNode* rotate_left_unchecked(AvlNode *top, AvlNode *bottom) {
     assert(top);
     assert(bottom);
     assert(top->right == bottom);
@@ -229,7 +225,7 @@ static AvlNode* do_rotate_left(AvlNode *top, AvlNode *bottom) {
     return bottom;
 }
 
-static AvlNode* do_rotate_right(AvlNode *top, AvlNode *bottom) {
+AvlNode* rotate_right_unchecked(AvlNode *top, AvlNode *bottom) {
     assert(top);
     assert(bottom);
     assert(top->left == bottom);
