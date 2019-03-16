@@ -179,6 +179,17 @@ int BitStack_pop(BitStack *self) {
 }
 
 /**
+ *  Removes all bits from this BitStack.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ */
+void BitStack_clear(BitStack *self) {
+    assert(self);
+
+    self->len = 0;
+}
+
+/**
  *  Accesses a bit indexed from the top of this BitStack.
  *
  *  @param self Must not be NULL. Must be initialized.

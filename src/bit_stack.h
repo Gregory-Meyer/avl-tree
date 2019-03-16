@@ -84,6 +84,13 @@ size_t BitStack_push_clear(BitStack *self);
 int BitStack_pop(BitStack *self);
 
 /**
+ *  Removes all bits from this BitStack.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ */
+void BitStack_clear(BitStack *self);
+
+/**
  *  Accesses a bit indexed from the top of this BitStack.
  *
  *  @param self Must not be NULL. Must be initialized.
