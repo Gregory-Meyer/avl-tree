@@ -257,39 +257,6 @@ static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode
     *root_ptr = rotate(*root_ptr);
 }
 
-static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
-    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
-
-    const size_t idx = bit / NBITS;
-    const size_t subidx = bit % NBITS;
-
-    assert(idx < NUM_FLAG_WORDS);
-
-    return (arr[idx] & (1ul << subidx)) != 0;
-}
-
-static void setbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
-    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
-
-    const size_t idx = bit / NBITS;
-    const size_t subidx = bit % NBITS;
-
-    assert(idx < NUM_FLAG_WORDS);
-
-    arr[idx] |= (1ul << subidx);
-}
-
-static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
-    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
-
-    const size_t idx = bit / NBITS;
-    const size_t subidx = bit % NBITS;
-
-    assert(NUM_FLAG_WORDS);
-
-    arr[idx] &= ~(1ul << subidx);
-}
-
 #ifndef NDEBUG
 static int do_assert_balance_factors(const AvlNode *node) {
     if (!node) {
@@ -308,7 +275,7 @@ static int do_assert_balance_factors(const AvlNode *node) {
 #endif
 
 static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
-                        unsigned long is_left_flags[NUM_FLAG_WORDS]);
+                        BitStack *is_left_flags);
 
 /**
  *  Removes the value associated with a key as well as the key that
@@ -320,13 +287,14 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
  */
 int AvlMap_remove(AvlMap *self, const void *key) {
     NodeStack nodes;
-    unsigned long is_left_flags[NUM_FLAG_WORDS];
+    BitStack is_left_flags;
     size_t current_depth = 0;
     AvlNode **current_ptr;
 
     assert(self);
 
     NodeStack_new(&nodes);
+    BitStack_new(&is_left_flags);
     for (current_ptr = &self->root; *current_ptr; ++current_depth) {
         AvlNode *const current = *current_ptr;
         int ordering;
@@ -339,33 +307,34 @@ int AvlMap_remove(AvlMap *self, const void *key) {
             break; /* we got em */
         } else if (ordering < 0 && current->left) {
             current_ptr = &current->left;
-            setbit(is_left_flags, current_depth);
+            BitStack_push_set(&is_left_flags);
         } else if (ordering > 0 && current->right) {
             current_ptr = &current->right;
-            clearbit(is_left_flags, current_depth);
+            BitStack_push_clear(&is_left_flags);
         } else {
+            BitStack_drop(&is_left_flags);
+            NodeStack_drop(&nodes);
+
             return 0; /* no such key... */
         }
     }
 
-    remove_node(self, current_ptr, &nodes, is_left_flags);
+    remove_node(self, current_ptr, &nodes, &is_left_flags);
 
+    BitStack_drop(&is_left_flags);
     NodeStack_drop(&nodes);
 
     return 1;
 }
 
-static AvlNode* swap_for_delete(NodeStack *nodes, unsigned long is_left_flags[NUM_FLAG_WORDS],
-                                AvlNode *node);
+static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node);
 
 static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
-                                                 unsigned long is_left_flags[NUM_FLAG_WORDS]);
+                                                 BitStack *is_left_flags);
 
 static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
-                        unsigned long is_left_flags[NUM_FLAG_WORDS]) {
+                        BitStack *is_left_flags) {
     AvlNode *node;
-    AvlNode **left;
-    AvlNode **right;
 
     assert(self);
     assert(node_ptr);
@@ -373,17 +342,15 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
     assert(nodes);
 
     node = *node_ptr;
-    left = &node->left;
-    right = &node->right;
 
-    if (*left && *right) {
+    if (node->left && node->right) {
         *node_ptr = swap_for_delete(nodes, is_left_flags, *node_ptr);
-    } else if (*left) {
-        *node_ptr = *left;
-        *left = NULL;
-    } else if (*right) {
-        *node_ptr = *right;
-        *right = NULL;
+    } else if (node->left) {
+        *node_ptr = node->left;
+        node->left = NULL;
+    } else if (node->right) {
+        *node_ptr = node->right;
+        node->right = NULL;
     } else {
         *node_ptr = NULL;
     }
@@ -391,65 +358,73 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
     self->deleter(node->key, node->value, self->deleter_arg);
     free(node);
 
+    NodeStack_pop(nodes);
+
     update_balance_factors_and_rebalance(self, nodes, is_left_flags);
     assert_correct_balance_factors(self->root);
 }
 
 /* find inorder sucessor */
-static AvlNode* swap_for_delete(NodeStack *nodes, unsigned long is_left_flags[NUM_FLAG_WORDS],
-                                AvlNode *node) {
-    AvlNode **to_swap_ptr;
-    AvlNode *to_swap;
+static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node) {
+    AvlNode **successor_ptr;
+    AvlNode *successor;
+    size_t swap_idx;
 
     assert(nodes);
     assert(is_left_flags);
     assert(node);
     assert(node->left && node->right);
 
-    to_swap_ptr = &node->right;
-    clearbit(is_left_flags, NodeStack_len(nodes) - 1);
-    NodeStack_push(nodes, *to_swap_ptr);
+    successor_ptr = &node->right;
+    BitStack_push_clear(is_left_flags);
+    swap_idx = NodeStack_push(nodes, NULL) - 1;
 
-    while ((*to_swap_ptr)->left) {
-        to_swap_ptr = &(*to_swap_ptr)->left;
-        setbit(is_left_flags, NodeStack_len(nodes) - 1);
-        NodeStack_push(nodes, *to_swap_ptr);
+    while ((*successor_ptr)->left) {
+        successor_ptr = &(*successor_ptr)->left;
+        BitStack_push_set(is_left_flags);
+        NodeStack_push(nodes, *successor_ptr);
     }
 
-    to_swap = *to_swap_ptr;
-    *to_swap_ptr = to_swap->right;
-    to_swap->right = node->right;
-    to_swap->left = node->left;
-    to_swap->balance_factor = node->balance_factor;
+    successor = *successor_ptr;
+    *successor_ptr = successor->right;
+    successor->left = node->left;
+    successor->right = node->right;
+    successor->balance_factor = node->balance_factor;
 
-    node->right = NULL;
     node->left = NULL;
+    node->right = NULL;
     node->balance_factor = 0;
 
-    return to_swap;
+    *NodeStack_get_mut(nodes, (ptrdiff_t) swap_idx) = successor;
+
+    BitStack_pop(is_left_flags);
+    NodeStack_pop(nodes);
+
+    return successor;
 }
 
 static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
-                                                 unsigned long is_left_flags[NUM_FLAG_WORDS]) {
-    size_t depth;
-    size_t init_depth;
-
+                                                 BitStack *is_left_flags) {
     assert(nodes);
     assert(is_left_flags);
 
-    init_depth = NodeStack_len(nodes) - 2;
-    for (depth = init_depth; depth <= init_depth; --depth) { /* wraparound overflow */
+    while (1) {
         AvlNode *const node = NodeStack_pop(nodes);
+        const int is_left = BitStack_pop(is_left_flags);
+        const int parent_dir = BitStack_get(is_left_flags, 0);
         AvlNode **parent_ptr;
-        assert(node);
 
-        if (depth == 0) {
+        if (!node || is_left == -1) {
+            break;
+        }
+
+        if (parent_dir == -1) {
             parent_ptr = &self->root;
         } else {
             AvlNode *const parent = NodeStack_get(nodes, 0);
             assert(parent);
 
-            if (getbit(is_left_flags, depth - 1)) {
+            if (parent_dir) {
                 parent_ptr = &parent->left;
             } else {
                 parent_ptr = &parent->right;
@@ -458,7 +433,7 @@ static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
 
         assert(node == *parent_ptr);
 
-        if (getbit(is_left_flags, depth)) {
+        if (is_left) {
             ++node->balance_factor;
 
             if (node->balance_factor == 1) {
@@ -466,7 +441,7 @@ static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
             } else if (node->balance_factor == 2) {
                 *parent_ptr = rotate(node);
             }
-        } else {
+        } else if (!is_left) {
             --node->balance_factor;
 
             if (node->balance_factor == -1) {
