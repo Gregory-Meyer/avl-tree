@@ -511,7 +511,10 @@ int AvlMap_remove(AvlMap *self, const void *key) {
 }
 
 static AvlNode* swap_for_delete(NodeStack *nodes, unsigned long is_left_flags[NUM_FLAG_WORDS],
-                                AvlNode *node_ptr);
+                                AvlNode *node);
+
+static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
+                                                 unsigned long is_left_flags[NUM_FLAG_WORDS]);
 
 static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
                         unsigned long is_left_flags[NUM_FLAG_WORDS]) {
@@ -543,29 +546,91 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
     self->deleter(node->key, node->value, self->deleter_arg);
     free(node);
 
+    update_balance_factors_and_rebalance(self, nodes, is_left_flags);
     assert_correct_balance_factors(self->root);
 }
 
 /* find inorder sucessor */
-static AvlNode* swap_for_delete(AvlNode *node) {
+static AvlNode* swap_for_delete(NodeStack *nodes, unsigned long is_left_flags[NUM_FLAG_WORDS],
+                                AvlNode *node) {
     AvlNode **to_swap_ptr;
     AvlNode *to_swap;
 
+    assert(nodes);
+    assert(is_left_flags);
     assert(node);
     assert(node->left && node->right);
 
-    for (to_swap_ptr = &node->right; (*to_swap_ptr)->left;
-         to_swap_ptr = &(*to_swap_ptr)->left) { }
+    to_swap_ptr = &node->right;
+    clearbit(is_left_flags, NodeStack_len(nodes) - 1);
+    NodeStack_push(nodes, *to_swap_ptr);
+
+    while ((*to_swap_ptr)->left) {
+        to_swap_ptr = &(*to_swap_ptr)->left;
+        setbit(is_left_flags, NodeStack_len(nodes) - 1);
+        NodeStack_push(nodes, *to_swap_ptr);
+    }
 
     to_swap = *to_swap_ptr;
     *to_swap_ptr = to_swap->right;
     to_swap->right = node->right;
     to_swap->left = node->left;
+    to_swap->balance_factor = node->balance_factor;
 
     node->right = NULL;
     node->left = NULL;
+    node->balance_factor = 0;
 
     return to_swap;
+}
+
+static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
+                                                 unsigned long is_left_flags[NUM_FLAG_WORDS]) {
+    size_t depth;
+    size_t init_depth;
+
+    assert(nodes);
+    assert(is_left_flags);
+
+    init_depth = NodeStack_len(nodes) - 2;
+    for (depth = init_depth; depth <= init_depth; --depth) { /* wraparound overflow */
+        AvlNode *const node = NodeStack_pop(nodes);
+        AvlNode **parent_ptr;
+        assert(node);
+
+        if (depth == 0) {
+            parent_ptr = &self->root;
+        } else {
+            AvlNode *const parent = NodeStack_get(nodes, 0);
+            assert(parent);
+
+            if (getbit(is_left_flags, depth - 1)) {
+                parent_ptr = &parent->left;
+            } else {
+                parent_ptr = &parent->right;
+            }
+        }
+
+        assert(node == *parent_ptr);
+
+        if (getbit(is_left_flags, depth)) {
+            ++node->balance_factor;
+
+            if (node->balance_factor == 1) {
+                return;
+            } else if (node->balance_factor == 2) {
+                *parent_ptr = rotate(node, node->left);
+            }
+        } else {
+            --node->balance_factor;
+
+            if (node->balance_factor == -1) {
+                return;
+            } else if (node->balance_factor == -2) {
+                *parent_ptr = rotate(node, node->right);
+            }
+        }
+    }
 }
 
 static void drop(AvlMap *self, AvlNode *node);
