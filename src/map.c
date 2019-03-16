@@ -27,6 +27,7 @@
 #include <bloodhound.h>
 
 #include "mem.h"
+#include "node.h"
 #include "node_stack.h"
 
 #include <assert.h>
@@ -35,15 +36,6 @@
 #include <stdlib.h>
 
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
-
-/** AVL Tree node. */
-struct AvlNode {
-    AvlNode *left;
-    AvlNode *right;
-    void *key;
-    void *value;
-    signed char balance_factor; /* on a 64-bit architecture this is <= 90 */
-};
 
 /**
  *  Initializes an empty AvlMap.
@@ -245,8 +237,6 @@ static AvlNode* alloc_node(void *key, void *value) {
     return node;
 }
 
-static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom);
-
 static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
                       AvlNode **root_ptr, AvlNode *inserted) {
     AvlNode *current;
@@ -266,8 +256,7 @@ static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
         }
     }
 
-    *root_ptr = rotate(*root_ptr, getbit(is_left_flags, 0) ? (*root_ptr)->left
-                                                            : (*root_ptr)->right);
+    *root_ptr = rotate(*root_ptr);
 }
 
 static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
@@ -301,148 +290,6 @@ static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
     assert(NUM_FLAG_WORDS);
 
     arr[idx] &= ~(1ul << subidx);
-}
-
-static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom);
-
-static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom);
-
-static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom);
-
-static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom);
-
-static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom) {
-    AvlNode *root;
-
-    assert(top);
-    assert(middle_or_bottom);
-    assert(top->left == middle_or_bottom || top->right == middle_or_bottom);
-
-    if (top->balance_factor == -2) {
-        assert(top->left == middle_or_bottom);
-
-        if (middle_or_bottom->balance_factor == -1) {
-            root = rotate_right(top, middle_or_bottom);
-
-            top->balance_factor = 0;
-            middle_or_bottom->balance_factor = 0;
-        } else { /* middle_or_bottom->balance_factor == 1 */
-            AvlNode *child;
-
-            assert(middle_or_bottom->balance_factor == 1);
-            assert(middle_or_bottom->right);
-
-            child = middle_or_bottom->right;
-            root = rotate_leftright(top, middle_or_bottom, child);
-
-            if (child->balance_factor == -1) {
-                top->balance_factor = 1;
-                middle_or_bottom->balance_factor = 0;
-            } else if (child->balance_factor == 0) {
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = 0;
-            } else {
-                assert(child->balance_factor == 1);
-
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = -1;
-            }
-
-            child->balance_factor = 0;
-        }
-    } else if (top->balance_factor == 2) {
-        assert(top->right == middle_or_bottom);
-
-        if (middle_or_bottom->balance_factor == 1) {
-            root = rotate_left(top, middle_or_bottom);
-
-            top->balance_factor = 0;
-            middle_or_bottom->balance_factor = 0;
-        } else { /* middle_or_bottom->balance_factor == -1 */
-            AvlNode *child;
-
-            assert(middle_or_bottom->balance_factor == -1);
-            assert(middle_or_bottom->left);
-
-            child = middle_or_bottom->left;
-            root = rotate_rightleft(top, middle_or_bottom, child);
-
-            if (child->balance_factor == 1) {
-                top->balance_factor = -1;
-                middle_or_bottom->balance_factor = 0;
-            } else if (child->balance_factor == 0) {
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = 0;
-            } else {
-                assert(child->balance_factor == -1);
-
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = 1;
-            }
-
-            child->balance_factor = 0;
-        }
-    } else {
-        root = top;
-    }
-
-    return root;
-}
-
-static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
-    AvlNode *root;
-
-    assert(top);
-    assert(middle);
-    assert(bottom);
-    assert(top->left == middle);
-    assert(middle->right == bottom);
-    assert(top->balance_factor == -2);
-    assert(middle->balance_factor == 1);
-
-    top->left = rotate_left(middle, bottom);
-    root = rotate_right(top, bottom);
-
-    return root;
-}
-
-static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
-    AvlNode *root;
-
-    assert(top);
-    assert(middle);
-    assert(bottom);
-    assert(top->right == middle);
-    assert(middle->left == bottom);
-    assert(top->balance_factor == 2);
-    assert(middle->balance_factor == -1);
-
-    top->right = rotate_right(middle, bottom);
-    root = rotate_left(top, bottom);
-
-    return root;
-}
-
-static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom) {
-    assert(top);
-    assert(bottom);
-    assert(top->right == bottom);
-
-    top->right = bottom->left;
-    bottom->left = top;
-
-    return bottom;
-}
-
-static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
-    assert(top);
-    assert(bottom);
-    assert(top->left == bottom);
-
-    top->left = bottom->right;
-    bottom->right = top;
-
-    return bottom;
 }
 
 #ifndef NDEBUG
@@ -619,7 +466,7 @@ static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
             if (node->balance_factor == 1) {
                 return;
             } else if (node->balance_factor == 2) {
-                *parent_ptr = rotate(node, node->left);
+                *parent_ptr = rotate(node);
             }
         } else {
             --node->balance_factor;
@@ -627,7 +474,7 @@ static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
             if (node->balance_factor == -1) {
                 return;
             } else if (node->balance_factor == -2) {
-                *parent_ptr = rotate(node, node->right);
+                *parent_ptr = rotate(node);
             }
         }
     }
@@ -656,7 +503,7 @@ void AvlMap_clear(AvlMap *self) {
         AvlNode *next;
 
         while (current->left) {
-            current = rotate_right(current, current->left);
+            current = rotate_right_unchecked(current, current->left);
         }
 
         next = current->right;
