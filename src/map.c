@@ -26,6 +26,7 @@
 
 #include <bloodhound.h>
 
+#include "bit_stack.h"
 #include "mem.h"
 #include "node.h"
 #include "node_stack.h"
@@ -143,14 +144,7 @@ static AvlNode* alloc_node(void *key, void *value);
  */
 #define NUM_FLAG_WORDS 3
 
-static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
-                      AvlNode **root_ptr, AvlNode *inserted);
-
-static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit);
-
-static void setbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
-
-static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
+static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted);
 
 #ifdef NDEBUG
 #define assert_correct_balance_factors(N) ((void) 0)
@@ -179,11 +173,12 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 
         return NULL;
     } else {
-        unsigned long is_left_flags[NUM_FLAG_WORDS];
+        BitStack is_left_flags;
         AvlNode **current_ptr = &self->root;
         AvlNode **rotate_root_ptr = &self->root;
         void *previous_value = NULL;
-        size_t current_depth_from_root = 0;
+
+        BitStack_new(&is_left_flags);
 
         while (1) {
             AvlNode *const current = *current_ptr;
@@ -197,18 +192,16 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             } else {
                 if (current->balance_factor != 0) {
                     rotate_root_ptr = current_ptr;
-                    current_depth_from_root = 0;
+                    BitStack_clear(&is_left_flags);
                 }
 
                 if (compare < 0) { /* key < current */
-                    setbit(is_left_flags, current_depth_from_root);
+                    BitStack_push_set(&is_left_flags);
                     current_ptr = &current->left;
                 } else { /* key > current, compare > 0 */
-                    clearbit(is_left_flags, current_depth_from_root);
+                    BitStack_push_clear(&is_left_flags);
                     current_ptr = &current->right;
                 }
-
-                ++current_depth_from_root;
 
                 if (!*current_ptr) {
                     *current_ptr = alloc_node(key, value);
@@ -220,8 +213,10 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             }
         }
 
-        rebalance(is_left_flags, rotate_root_ptr, *current_ptr);
+        rebalance(&is_left_flags, rotate_root_ptr, *current_ptr);
         assert_correct_balance_factors(self->root);
+
+        BitStack_drop(&is_left_flags);
 
         return NULL;
     }
@@ -237,8 +232,7 @@ static AvlNode* alloc_node(void *key, void *value) {
     return node;
 }
 
-static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
-                      AvlNode **root_ptr, AvlNode *inserted) {
+static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted) {
     AvlNode *current;
     size_t depth_from_root;
 
@@ -246,8 +240,12 @@ static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
     assert(root_ptr);
     assert(*root_ptr);
 
-    for (depth_from_root = 0, current = *root_ptr; current != inserted; ++depth_from_root) {
-        if (getbit(is_left_flags, depth_from_root)) {
+    for (depth_from_root = BitStack_len(is_left_flags) - 1, current = *root_ptr;
+         current != inserted; --depth_from_root) {
+        const int is_left = BitStack_get(is_left_flags, depth_from_root);
+        assert(is_left != -1);
+
+        if (is_left) {
             --current->balance_factor;
             current = current->left;
         } else {
