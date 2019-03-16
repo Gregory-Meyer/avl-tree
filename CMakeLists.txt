@@ -12,7 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include_directories(include src)
 
-add_library(bloodhound STATIC src/map.c src/mem.c src/node_stack.c)
+add_library(bloodhound STATIC src/bit_stack.c src/map.c src/mem.c src/node.c
+                              src/node_stack.c)
 
 option(BLOODHOUND_BUILD_TESTS "Build tests for libbloodhound." ON)
 if(BLOODHOUND_BUILD_TESTS)
