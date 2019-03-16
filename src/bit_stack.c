@@ -143,8 +143,8 @@ static void grow_if_full(BitStack *self) {
     }
 
     if (!self->data) {
-        self->data = checked_malloc(sizeof(unsigned long) * 4);
-        self->capacity = 4 * BITS_PER_WORD;
+        self->data = checked_malloc(sizeof(unsigned long));
+        self->capacity = BITS_PER_WORD; /* at least 32, this is plenty */
     } else {
         const size_t new_word_count = (self->capacity / BITS_PER_WORD + 1) * 3 / 2;
 
