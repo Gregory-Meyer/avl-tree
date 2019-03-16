@@ -203,8 +203,9 @@ int BitStack_get(const BitStack *self, size_t index) {
     if (self->len <= index) {
         return -1;
     } else {
-        const size_t word_idx = self->len / BITS_PER_WORD;
-        const size_t bit_idx = self->len % BITS_PER_WORD;
+        const size_t real_idx = (self->len - index - 1);
+        const size_t word_idx = real_idx / BITS_PER_WORD;
+        const size_t bit_idx = real_idx % BITS_PER_WORD;
 
         return (self->data[word_idx] & (1ul << bit_idx)) != 0;
     }
