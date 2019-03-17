@@ -169,7 +169,7 @@ AvlNode** NodeStack_get_mut(NodeStack *self, ptrdiff_t index) {
     assert(self);
 
     if (index < 0) {
-        index += self->len;
+        index += (ptrdiff_t) self->len;
     }
 
     if (index < 0 || (size_t) index >= self->len) {
