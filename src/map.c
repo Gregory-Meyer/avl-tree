@@ -183,6 +183,8 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
                 previous_value = current->value;
                 current->value = value;
 
+                BitStack_drop(&is_left_flags);
+
                 return previous_value;
             } else {
                 if (current->balance_factor != 0) {
@@ -340,7 +342,7 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
     node = *node_ptr;
 
     if (node->left && node->right) {
-        *node_ptr = swap_for_delete(nodes, is_left_flags, *node_ptr);
+        node = swap_for_delete(nodes, is_left_flags, *node_ptr);
     } else if (node->left) {
         *node_ptr = node->left;
         node->left = NULL;
@@ -350,6 +352,9 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
     } else {
         *node_ptr = NULL;
     }
+
+    assert(!node->left);
+    assert(!node->right);
 
     self->deleter(node->key, node->value, self->deleter_arg);
     free(node);
@@ -364,7 +369,6 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
 static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node) {
     AvlNode **successor_ptr;
     AvlNode *successor;
-    size_t swap_idx;
 
     assert(nodes);
     assert(is_left_flags);
@@ -373,7 +377,7 @@ static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNo
 
     successor_ptr = &node->right;
     BitStack_push_clear(is_left_flags);
-    swap_idx = NodeStack_push(nodes, NULL) - 1;
+    NodeStack_push(nodes, *successor_ptr);
 
     while ((*successor_ptr)->left) {
         successor_ptr = &(*successor_ptr)->left;
@@ -382,19 +386,23 @@ static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNo
     }
 
     successor = *successor_ptr;
+
+    {
+        void *const temp = node->key;
+        node->key = successor->key;
+        successor->key = temp;
+    }
+
+    {
+        void *const temp = node->value;
+        node->value = successor->value;
+        successor->value = temp;
+    }
+
     *successor_ptr = successor->right;
-    successor->left = node->left;
-    successor->right = node->right;
-    successor->balance_factor = node->balance_factor;
-
-    node->left = NULL;
-    node->right = NULL;
-    node->balance_factor = 0;
-
-    *NodeStack_get_mut(nodes, (ptrdiff_t) swap_idx) = successor;
-
-    BitStack_pop(is_left_flags);
-    NodeStack_pop(nodes);
+    successor->right = NULL;
+    successor->left = NULL;
+    successor->balance_factor = 0;
 
     return successor;
 }
@@ -414,27 +422,18 @@ static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
             break;
         }
 
-        fprintf(stderr, "node = %p, is_left = %d\n", (void*) node, is_left);
-
         if (parent_dir == -1) {
-            fprintf(stderr, "no parent dir\n");
             parent_ptr = &self->root;
         } else {
             AvlNode *const parent = NodeStack_get(nodes, -1);
             assert(parent);
 
-            fprintf(stderr, "parent dir\n");
-
             if (parent_dir) {
-                fprintf(stderr, "left\n");
                 parent_ptr = &parent->left;
             } else {
-                fprintf(stderr, "right\n");
                 parent_ptr = &parent->right;
             }
         }
-
-        fprintf(stderr, "parent_ptr = %p\n", (void*) parent_ptr);
 
         assert(node == *parent_ptr);
 
