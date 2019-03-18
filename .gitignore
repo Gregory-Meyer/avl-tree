@@ -103,4 +103,3 @@ obj/
 # End of https://www.gitignore.io/api/c,c++,ninja,cmake,premake-gmake
 
 build/
-doc/
