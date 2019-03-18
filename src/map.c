@@ -34,7 +34,6 @@
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
