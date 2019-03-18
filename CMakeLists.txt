@@ -35,7 +35,7 @@ if(BLOODHOUND_BUILD_TESTS)
     catch_discover_tests(test_bloodhound)
 endif()
 
-option(BLOODHOUND_BUILD_DOCS "Build documentation for libbloodhound." ON)
+option(BLOODHOUND_BUILD_DOCS "Build documentation for libbloodhound." OFF)
 if(BLOODHOUND_BUILD_DOCS)
     set(DOXYGEN_SKIP_DOT ON)
     find_package(Doxygen REQUIRED)
