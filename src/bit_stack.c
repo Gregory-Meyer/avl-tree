@@ -105,7 +105,9 @@ void BitStack_from_adopted_slice(BitStack *self, unsigned long *data, size_t len
 void BitStack_drop(BitStack *self) {
     assert(self);
 
-    free(self->data);
+    if (self->is_owned) {
+        free(self->data);
+    }
 }
 
 static void grow_if_full(BitStack *self);
