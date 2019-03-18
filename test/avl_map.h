@@ -41,31 +41,54 @@ public:
     }
 
     bool insert(const K &key, const V &value) {
-        K *const key_owned = new K(key);
-        V *const value_owned = new V(value);
-
-        V *const previous = static_cast<V*>(AvlMap_insert(&impl_, key_owned, value_owned));
+        Node *const node = new Node(key, value);
+        Node *const previous = reinterpret_cast<Node*>(AvlMap_insert(&impl_, &node->node));
 
         if (previous) {
             delete previous;
-            delete key_owned;
 
             return true;
-        } else {
-            return false;
         }
+
+        return false;
     }
 
     bool remove(const K &key) {
-        return AvlMap_remove(&impl_, &key) != 0;
+        Node *const previous = reinterpret_cast<Node*>(
+            AvlMap_remove(&impl_, &key, Map::het_comparator<K>, &comparator_)
+        );
+
+        if (previous) {
+            delete previous;
+
+            return true;
+        }
+
+        return false;
     }
 
     V* get(const K &key) noexcept {
-        return static_cast<V*>(AvlMap_get_mut(&impl_, &key));
+        Node *const node = reinterpret_cast<Node*>(
+            AvlMap_get_mut(&impl_, &key, Map::het_comparator<K>, &comparator_)
+        );
+
+        if (!node) {
+            return nullptr;
+        } else {
+            return &node->value;
+        }
     }
 
     const V* get(const K &key) const noexcept {
-        return static_cast<const V*>(AvlMap_get(&impl_, &key));
+        const Node *const node = reinterpret_cast<const Node*>(
+            AvlMap_get(&impl_, &key, Map::het_comparator<K>, &comparator_)
+        );
+
+        if (!node) {
+            return nullptr;
+        } else {
+            return node->value;
+        }
     }
 
     void clear() noexcept {
@@ -73,24 +96,50 @@ public:
     }
 
 private:
-    static void deleter(void *key, void *value, void*) {
-        delete static_cast<K*>(key);
-        delete static_cast<V*>(value);
+    static void deleter(AvlNode *node, void*) {
+        delete reinterpret_cast<Node*>(node);
     }
 
-    static int comparator(const void *lhs_v, const void *rhs_v, void *comparator_v) {
-        const K &lhs = *static_cast<const K*>(lhs_v);
-        const K &rhs = *static_cast<const K*>(rhs_v);
+    template <typename L>
+    static int het_comparator(const void *lhs_v, const AvlNode *rhs_v, void *comparator_v) {
+        const L &lhs = *static_cast<const L*>(lhs_v);
+        const Node &rhs = *reinterpret_cast<const Node*>(rhs_v);
         C &comparator = *static_cast<C*>(comparator_v);
 
-        if (comparator(lhs, rhs)) { // lhs < rhs
+        if (comparator(lhs, rhs.key)) { // lhs < rhs
             return -1;
-        } else if (comparator(rhs, lhs)) { // rhs < lhs
+        } else if (comparator(rhs.key, lhs)) { // rhs < lhs
             return 1;
         } else {
             return 0;
         }
     }
+
+    static int comparator(const AvlNode *lhs_v, const AvlNode *rhs_v, void *comparator_v) {
+        const Node &lhs = *reinterpret_cast<const Node*>(lhs_v);
+        const Node &rhs = *reinterpret_cast<const Node*>(rhs_v);
+        C &comparator = *static_cast<C*>(comparator_v);
+
+        if (comparator(lhs.key, rhs.key)) { // lhs < rhs
+            return -1;
+        } else if (comparator(rhs.key, lhs.key)) { // rhs < lhs
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    struct Node {
+        template <typename L, typename W>
+        Node(L &&l, W &&w)
+        noexcept(std::is_nothrow_constructible<K, L>::value
+                 && std::is_nothrow_constructible<V, W>::value)
+        : key(std::forward<L>(l)), value(std::forward<W>(w)) { }
+
+        AvlNode node = {nullptr, nullptr, 0};
+        K key;
+        V value;
+    };
 
     AvlMap impl_;
     C comparator_;

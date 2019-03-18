@@ -21,6 +21,8 @@ if(BLOODHOUND_BUILD_TESTS)
 
     add_subdirectory(./external/Catch2)
 
+    include_directories(test)
+
     add_executable(test_bloodhound test/runner.cpp test/get.spec.cpp
                                    test/insert.spec.cpp test/remove.spec.cpp)
     target_link_libraries(test_bloodhound Catch2::Catch2 bloodhound)

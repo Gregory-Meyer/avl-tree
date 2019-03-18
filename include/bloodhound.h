@@ -36,17 +36,20 @@ extern "C" {
 typedef struct AvlMap AvlMap;
 typedef struct AvlNode AvlNode;
 
-/* int compare(const void *lhs, const void *rhs, void *arg); */
-typedef int (*AvlComparator)(const void*, const void*, void*);
+/* int compare(const AvlNode *lhs, const AvlNode *rhs, void *arg); */
+typedef int (*AvlComparator)(const AvlNode*, const AvlNode*, void*);
 
-/* void traverse(void *context, const void *key, const void *value); */
-typedef void (*AvlTraverseCb)(void*, const void*, const void*);
+/* int compare(const void *lhs, const AvlNode *rhs, void *arg); */
+typedef int (*AvlHetComparator)(const void*, const AvlNode*, void*);
 
-/* void traverse_mut(void *context, const void *key, void *value); */
-typedef void (*AvlTraverseMutCb)(void*, const void*, void*);
+/* void traverse(void *context, const AvlNode *node); */
+typedef void (*AvlTraverseCb)(void*, const AvlNode*);
 
-/* void delete(void *key, void *value, void *arg); */
-typedef void (*AvlDeleter)(void*, void*, void*);
+/* void traverse_mut(void *context, AvlNode *node); */
+typedef void (*AvlTraverseMutCb)(void*, AvlNode*);
+
+/* void delete(AvlNode *node, void *arg); */
+typedef void (*AvlDeleter)(AvlNode*, void*);
 
 /**
  *  Initializes an empty AvlMap.
@@ -55,12 +58,10 @@ typedef void (*AvlDeleter)(void*, void*, void*);
  *  @param compare Must not be NULL. Will be used to compare keys as if
  *                 by compare(lhs, rhs, compare_arg). Return values
  *                 should have the same meaning as strcmp and should
- *                 form a total order over the set of keys.
- *  @param compare_arg Passed to compare when invoked.
- *  @param deleter Must not be NULL. Will be used to free key-value
- *                 pairs when they are no longer usable by the tree as
- *                 if by deleter(key, value, deleter_arg).
- *  @param deleter_arg Passed to deleter when invoked.
+ *                 form a total ordering over the set of keys.
+ *  @param deleter Must not be NULL. Will be used to free nodes when
+ *                 they are no longer usable by the tree as if by
+ *                 deleter(node, deleter_arg).
  */
 void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
                 AvlDeleter deleter, void *deleter_arg);
@@ -77,40 +78,48 @@ void AvlMap_drop(AvlMap *self);
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @returns A pointer to the value associated with key. If no such
- *           value is in self, NULL.
+ *  @param comparator Must not be NULL. Must form the same total
+ *                    ordering over the contained elements as the one
+ *                    formed by the comparator passed to AvlMap_new.
+ *                    Will be invoked by comparator(key, node, arg).
+ *  @returns A pointer to the node that compares equal to key, if
+ *           there is one.
  */
-const void* AvlMap_get(const AvlMap *self, const void *key);
+const AvlNode* AvlMap_get(const AvlMap *self, const void *key, AvlHetComparator comparator,
+                          void *arg);
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @returns A mutable pointer to the value associated with key. If no
- *           such value is in self, NULL.
+ *  @param comparator Must not be NULL. Must form the same total
+ *                    ordering over the contained elements as the one
+ *                    formed by the comparator passed to AvlMap_new.
+ *                    Will be invoked by comparator(key, node, arg).
+ *  @returns A mutable pointer to the node that compares equal to key,
+ *           if there is one.
  */
-void* AvlMap_get_mut(AvlMap *self, const void *key);
+AvlNode* AvlMap_get_mut(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg);
 
 /**
- *  Inserts a (key, value) pair into an AvlMap, taking ownership of
- *  them.
+ *  Inserts an element into an AvlMap.
  *
  *  @param self Must not be NULL. Must be initialized.
- *  @param key If a key in this AvlMap compares equal, ownership will
- *             remain with the caller and will not be transferred to
- *             the AvlMap.
- *  @returns The previous value associated with key, if it exists.
- *           Ownership is transferred back to the caller in this case.
+ *  @param node Must not be NULL.
+ *  @returns The previous element that compares equal to node, if there
+ *           was one.
  */
-void* AvlMap_insert(AvlMap *self, void *key, void *value);
+AvlNode* AvlMap_insert(AvlMap *self, AvlNode *node);
 
 /**
- *  Removes the value associated with a key as well as the key that
- *  compared equal.
+ *  Removes the node that compares equal to a key.
  *
  *  @param self Must not be NULL.
- *  @returns Nonzero if a (key, value) pair was removed from this map,
- *           zero otherwise.
+ *  @param comparator Must not be NULL. Must form the same total
+ *                    ordering over the contained elements as the one
+ *                    formed by the comparator passed to AvlMap_new.
+ *                    Will be invoked by comparator(key, node, arg).
+ *  @returns The node that compared equal to key, if there was one.
  */
-int AvlMap_remove(AvlMap *self, const void *key);
+AvlNode* AvlMap_remove(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg);
 
 /**
  *  Clears the map, removing all members.
@@ -128,6 +137,13 @@ struct AvlMap {
     void *compare_arg;
     AvlDeleter deleter;
     void *deleter_arg;
+};
+
+/** AVL Tree node. */
+struct AvlNode {
+    AvlNode *left;
+    AvlNode *right;
+    signed char balance_factor; /* on a 64-bit architecture this is <= 90 */
 };
 
 #ifdef __cplusplus
