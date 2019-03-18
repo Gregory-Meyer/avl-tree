@@ -115,15 +115,6 @@ AvlNode* rotate_left_unchecked(AvlNode *top, AvlNode *bottom);
  */
 AvlNode* rotate_right_unchecked(AvlNode *top, AvlNode *bottom);
 
-/** AVL Tree node. */
-struct AvlNode {
-    AvlNode *left;
-    AvlNode *right;
-    void *key;
-    void *value;
-    signed char balance_factor; /* on a 64-bit architecture this is <= 90 */
-};
-
 #ifdef __cplusplus
 } // extern "C"
 #endif
