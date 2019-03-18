@@ -27,13 +27,74 @@
 #ifndef BLOODHOUND_H
 #define BLOODHOUND_H
 
+/**
+ *  @file bloodhound.h
+ *
+ *  C89 implementation of an AVL self-balancing binary search tree with
+ *  intrusive nodes.
+ */
+
 #include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+ *  AVL self-balancing binary search tree.
+ *
+ *  AVL trees maintain a strict "AVL condition": for each node,
+ *  the heights of its subtrees never differ by more than one. This
+ *  condition guarantees that the tree's height is upper-bounded by
+ *  1.44 log2(n + 1.065) - 0.328, where n is the number of nodes in the
+ *  tree. As such, insertion, removal, and searching are guaranteed to
+ *  run in O(log n) worst case time.
+ */
 typedef struct AvlTree AvlTree;
+
+/**
+ *  Intrusive AVL tree node.
+ *
+ *  Users should create custom structs that have AvlNode as a member,
+ *  such as by composition or inheritance (in C++). Although it may be
+ *  tempting, users should not modify the contents of AvlNode in their
+ *  own types. For example, the following is a node that holds a
+ *  const char* key and an int value:
+ *
+ *  @code{.c}
+ *  typedef struct Node {
+ *      AvlNode node;
+ *      const char *key;
+ *      int value;
+ *  } Node;
+ *
+ *  AvlTree map;
+ *  Node n = {{NULL, NULL, 0}, "Hello, world!", 42};
+ *  Node *const previous = (Node*) AvlTree_insert(&map, &n.node);
+ *  @endcode
+ *
+ *  In C, I recommend placing the AvlNode as the first member of your
+ *  struct to ensure that casting between your own node types and
+ *  AvlNode is valid. You can put the AvlNode member at a different
+ *  spot if you want to, but you'll have to use offsetof() to convert
+ *  between pointer types.
+ *
+ *  This is a similar example using inheritance in C++ to allow for
+ *  easy use of static_cast:
+ *
+ *  @code{.cpp}
+ *  struct Node : AvlNode {
+ *      Node(std::string k, int v) : key(std::move(k)), value(v) { }
+ *
+ *      std::string key;
+ *      int value;
+ *  }
+ *
+ *  AvlTree map;
+ *  Node n("Hello, world!", 42);
+ *  const auto previous = static_cast<Node*>(AvlTree_insert(&map, &n));
+ *  @endcode
+ */
 typedef struct AvlNode AvlNode;
 
 /* int compare(const AvlNode *lhs, const AvlNode *rhs, void *arg); */
@@ -127,6 +188,16 @@ AvlNode* AvlTree_remove(AvlTree *self, const void *key, AvlHetComparator compare
  */
 void AvlTree_clear(AvlTree *self);
 
+/**
+ *  AVL self-balancing binary search tree.
+ *
+ *  AVL trees maintain a strict "AVL condition": for each node,
+ *  the heights of its subtrees never differ by more than one. This
+ *  condition guarantees that the tree's height is upper-bounded by
+ *  1.44 log2(n + 1.065) - 0.328, where n is the number of nodes in the
+ *  tree. As such, insertion, removal, and searching are guaranteed to
+ *  run in O(log n) worst case time.
+ */
 struct AvlTree {
     AvlNode *root;
     size_t len;
@@ -136,6 +207,49 @@ struct AvlTree {
     void *deleter_arg;
 };
 
+/**
+ *  Intrusive AVL tree node.
+ *
+ *  Users should create custom structs that have AvlNode as a member,
+ *  such as by composition or inheritance (in C++). Although it may be
+ *  tempting, users should not modify the contents of AvlNode in their
+ *  own types. For example, the following is a node that holds a
+ *  const char* key and an int value:
+ *
+ *  @code{.c}
+ *  typedef struct Node {
+ *      AvlNode node;
+ *      const char *key;
+ *      int value;
+ *  } Node;
+ *
+ *  AvlTree map;
+ *  Node n = {{NULL, NULL, 0}, "Hello, world!", 42};
+ *  Node *const previous = (Node*) AvlTree_insert(&map, &n.node);
+ *  @endcode
+ *
+ *  In C, I recommend placing the AvlNode as the first member of your
+ *  struct to ensure that casting between your own node types and
+ *  AvlNode is valid. You can put the AvlNode member at a different
+ *  spot if you want to, but you'll have to use offsetof() to convert
+ *  between pointer types.
+ *
+ *  This is a similar example using inheritance in C++ to allow for
+ *  easy use of static_cast:
+ *
+ *  @code{.cpp}
+ *  struct Node : AvlNode {
+ *      Node(std::string k, int v) : key(std::move(k)), value(v) { }
+ *
+ *      std::string key;
+ *      int value;
+ *  }
+ *
+ *  AvlTree map;
+ *  Node n("Hello, world!", 42);
+ *  const auto previous = static_cast<Node*>(AvlTree_insert(&map, &n));
+ *  @endcode
+ */
 struct AvlNode {
     AvlNode *left;
     AvlNode *right;

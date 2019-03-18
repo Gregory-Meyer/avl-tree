@@ -10,4 +10,28 @@ env:
 install:
   - docker pull gregjm/cpp-build
   - docker build --tag bloodhound .
-script: docker run --privileged --rm bloodhound "${TEST_SUITE}"
+script:
+  - docker run --privileged --rm bloodhound "${TEST_SUITE}"
+jobs:
+  include:
+    - stage: deploy
+      if: branch = master
+      before_install:
+        - sudo apt-get install -y doxygen
+      install:
+        - true
+      script:
+        - mkdir build
+        - cd build
+        - cmake .. -DBLOODHOUND_BUILD_DOCS=ON
+        - cmake --build . --target doc
+        - cd ..
+      env: TEST_SUITE=""
+      deploy:
+        - provider: pages
+          skip-cleanup: true
+          github-token: $GITHUB_TOKEN
+          keep-history: true
+          on:
+            branch: master
+          local-dir: doc/html
