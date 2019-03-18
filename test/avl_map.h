@@ -33,16 +33,16 @@ template <typename K, typename V, typename C = std::less<K>>
 class Map {
 public:
     Map() noexcept {
-        AvlMap_new(&impl_, Map::comparator, &comparator_, Map::deleter, nullptr);
+        AvlTree_new(&impl_, Map::comparator, &comparator_, Map::deleter, nullptr);
     }
 
     ~Map() {
-        AvlMap_drop(&impl_);
+        AvlTree_drop(&impl_);
     }
 
     bool insert(const K &key, const V &value) {
         Node *const node = new Node(key, value);
-        Node *const previous = reinterpret_cast<Node*>(AvlMap_insert(&impl_, &node->node));
+        Node *const previous = reinterpret_cast<Node*>(AvlTree_insert(&impl_, &node->node));
 
         if (previous) {
             delete previous;
@@ -55,7 +55,7 @@ public:
 
     bool remove(const K &key) {
         Node *const previous = reinterpret_cast<Node*>(
-            AvlMap_remove(&impl_, &key, Map::het_comparator<K>, &comparator_)
+            AvlTree_remove(&impl_, &key, Map::het_comparator<K>, &comparator_)
         );
 
         if (previous) {
@@ -69,7 +69,7 @@ public:
 
     V* get(const K &key) noexcept {
         Node *const node = reinterpret_cast<Node*>(
-            AvlMap_get_mut(&impl_, &key, Map::het_comparator<K>, &comparator_)
+            AvlTree_get_mut(&impl_, &key, Map::het_comparator<K>, &comparator_)
         );
 
         if (!node) {
@@ -81,7 +81,7 @@ public:
 
     const V* get(const K &key) const noexcept {
         const Node *const node = reinterpret_cast<const Node*>(
-            AvlMap_get(&impl_, &key, Map::het_comparator<K>, &comparator_)
+            AvlTree_get(&impl_, &key, Map::het_comparator<K>, &comparator_)
         );
 
         if (!node) {
@@ -92,7 +92,7 @@ public:
     }
 
     void clear() noexcept {
-        AvlMap_clear(&impl_);
+        AvlTree_clear(&impl_);
     }
 
 private:
@@ -141,7 +141,7 @@ private:
         V value;
     };
 
-    AvlMap impl_;
+    AvlTree impl_;
     C comparator_;
 };
 
