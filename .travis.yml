@@ -12,16 +12,22 @@ install:
   - docker build --tag bloodhound .
 script:
   - docker run --privileged --rm bloodhound "${TEST_SUITE}"
-  - mkdir build
-  - cd build
-  - cmake .. -DBLOODHOUND_BUILD_DOCS=ON
-  - cmake --build . --target doc
-  - cd ..
-deploy:
-  - provider: pages
-    skip-cleanup: true
-    github-token: $GITHUB_TOKEN
-    keep-history: true
-    on:
-      branch: master
-    local-dir: doc/html
+jobs:
+  include:
+    - stage: deploy
+      script:
+        - sudo apt-get install -y doxygen
+        - mkdir build
+        - cd build
+        - cmake .. -DBLOODHOUND_BUILD_DOCS=ON
+        - cmake --build . --target doc
+        - cd ..
+      env: TEST_SUITE=""
+      deploy:
+        - provider: pages
+          skip-cleanup: true
+          github-token: $GITHUB_TOKEN
+          keep-history: true
+          on:
+            branch: master
+          local-dir: doc/html
