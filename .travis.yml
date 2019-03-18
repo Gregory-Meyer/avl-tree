@@ -15,8 +15,12 @@ script:
 jobs:
   include:
     - stage: deploy
-      script:
+      if: branch = master
+      before_install:
         - sudo apt-get install -y doxygen
+      install:
+        - true
+      script:
         - mkdir build
         - cd build
         - cmake .. -DBLOODHOUND_BUILD_DOCS=ON
