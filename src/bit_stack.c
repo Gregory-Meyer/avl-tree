@@ -93,7 +93,7 @@ void BitStack_from_adopted_slice(BitStack *self, unsigned long *data, size_t len
 
     self->data = data;
     self->len = 0;
-    self->capacity = len;
+    self->capacity = len * BITS_PER_WORD;
     self->is_owned = 0;
 }
 
