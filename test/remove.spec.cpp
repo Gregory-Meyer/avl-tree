@@ -27,7 +27,6 @@
 
 #include <algorithm>
 #include <map>
-#include <memory>
 #include <numeric>
 #include <random>
 #include <vector>
@@ -36,7 +35,7 @@
 
 constexpr std::size_t NUM_INSERTIONS = 2048;
 
-TEST_CASE("sorted insert, sorted get") {
+TEST_CASE("sorted insert, sorted remove") {
     avl::Map<int, int> map;
     std::vector<int> to_insert(NUM_INSERTIONS);
     std::iota(to_insert.begin(), to_insert.end(), 0);
@@ -45,12 +44,22 @@ TEST_CASE("sorted insert, sorted get") {
         REQUIRE_FALSE(map.insert(i, i));
     }
 
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
+
     for (int i : to_insert) {
-        REQUIRE(map.get(i));
+        REQUIRE(map.remove(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
-TEST_CASE("sorted insert, random get") {
+TEST_CASE("sorted insert, random remove") {
     avl::Map<int, int> map;
     std::vector<int> to_insert(NUM_INSERTIONS);
     std::iota(to_insert.begin(), to_insert.end(), 0);
@@ -62,12 +71,22 @@ TEST_CASE("sorted insert, random get") {
     const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
     std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
 
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
+
     for (int i : to_insert) {
-        REQUIRE(map.get(i));
+        REQUIRE(map.remove(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
-TEST_CASE("random insert, sorted get") {
+TEST_CASE("random insert, sorted remove") {
     avl::Map<int, int> map;
     std::vector<int> to_insert(NUM_INSERTIONS);
     std::iota(to_insert.begin(), to_insert.end(), 0);
@@ -79,13 +98,22 @@ TEST_CASE("random insert, sorted get") {
     }
 
     std::sort(to_insert.begin(), to_insert.end());
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
 
     for (int i : to_insert) {
-        REQUIRE(map.get(i));
+        REQUIRE(map.remove(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
 
-TEST_CASE("random insert, random get") {
+TEST_CASE("random insert, random remove") {
     avl::Map<int, int> map;
     std::vector<int> to_insert(NUM_INSERTIONS);
     std::iota(to_insert.begin(), to_insert.end(), 0);
@@ -97,8 +125,18 @@ TEST_CASE("random insert, random get") {
     }
 
     std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    std::map<int, int> contained;
+    std::transform(to_insert.cbegin(), to_insert.cend(),
+                   std::inserter(contained, contained.begin()),
+                   [](int i) { return std::make_pair(i, i); });
 
     for (int i : to_insert) {
-        REQUIRE(map.get(i));
+        REQUIRE(map.remove(i));
+        contained.erase(i);
+
+        for (auto jj : contained) {
+            REQUIRE(map.get(jj.first));
+        }
     }
 }
+

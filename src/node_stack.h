@@ -74,8 +74,9 @@ void NodeStack_drop(NodeStack *self);
  *
  *  @param self Must not be NULL. Must be initialized.
  *  @param node Will be yielded as the next result of pop().
+ *  @returns The new length of this NodeStack.
  */
-void NodeStack_push(NodeStack *self, AvlNode *node);
+size_t NodeStack_push(NodeStack *self, AvlNode *node);
 
 /**
  *  Removes an AvlNode from the top of this NodeStack, if there is one.
@@ -87,15 +88,31 @@ void NodeStack_push(NodeStack *self, AvlNode *node);
 AvlNode* NodeStack_pop(NodeStack *self);
 
 /**
- *  Retrieves the AvlNode that is index elements from the top of this
- *  NodeStack, if there is one.
+ *  Retrieves the AvlNode that is index elements from the bottom of
+ *  this NodeStack, if there is one.
  *
  *  @param self Must not be NULL. Must be initialized.
- *  @param index The index of the element to fetch, where 0 is the top.
+ *  @param index The index of the element to fetch. Negative elements
+ *               represent are relative to the top of the stack.
  *  @returns The AvlNode that was index elements from the top of this
  *           NodeStack. If no such element exists, NULL.
  */
-AvlNode* NodeStack_get(const NodeStack *self, size_t index);
+AvlNode* NodeStack_get(const NodeStack *self, ptrdiff_t index);
+
+/**
+ *  Retrieves the AvlNode that is index elements from the bottom of
+ *  this NodeStack, if there is one.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param index The index of the element to fetch. Negative elements
+ *               represent are relative to the top of the stack.
+ *  @returns The AvlNode that was index elements from the top of this
+ *           NodeStack. If no such element exists, NULL.
+ */
+AvlNode** NodeStack_get_mut(NodeStack *self, ptrdiff_t index);
+
+/** @returns The number of elements in this NodeStack. */
+size_t NodeStack_len(const NodeStack *self);
 
 /**
  *  LIFO queue of AvlNodes.

@@ -22,7 +22,6 @@
 //  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 //  IN THE SOFTWARE.
-//
 
 #include "avl_map.h"
 
@@ -56,7 +55,7 @@ TEST_CASE("string insertion") {
     REQUIRE(map.insert("qux", 20));
 }
 
-constexpr int NUM_INSERTIONS = 512;
+constexpr int NUM_INSERTIONS = 2048;
 
 TEST_CASE("sorted insertion") {
     avl::Map<int, int> map;

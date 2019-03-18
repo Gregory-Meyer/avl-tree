@@ -26,24 +26,18 @@
 
 #include <bloodhound.h>
 
+#include "bit_stack.h"
 #include "mem.h"
+#include "node.h"
 #include "node_stack.h"
 
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
-
-/** AVL Tree node. */
-struct AvlNode {
-    AvlNode *left;
-    AvlNode *right;
-    void *key;
-    void *value;
-    signed char balance_factor; /* on a 64-bit architecture this is <= 90 */
-};
 
 /**
  *  Initializes an empty AvlMap.
@@ -145,20 +139,7 @@ static void* value(AvlNode *node) {
 
 static AvlNode* alloc_node(void *key, void *value);
 
-/* unsigned long is >= 32 bits, 3 words gives at least 96 bits
- * maximum AVL tree depth is 1.44 log_2(n), so if there are 2^63 - 1
- * nodes, the tree will be at most 90.72 nodes deep
- */
-#define NUM_FLAG_WORDS 3
-
-static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
-                      AvlNode **root_ptr, AvlNode *inserted);
-
-static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit);
-
-static void setbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
-
-static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
+static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted);
 
 #ifdef NDEBUG
 #define assert_correct_balance_factors(N) ((void) 0)
@@ -166,6 +147,8 @@ static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit);
 #define assert_correct_balance_factors(N) do_assert_balance_factors((N))
 static int do_assert_balance_factors(const AvlNode *node);
 #endif
+
+#define IS_LEFT_FLAGS_BUF_SZ 3
 
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
@@ -187,11 +170,13 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 
         return NULL;
     } else {
-        unsigned long is_left_flags[NUM_FLAG_WORDS];
+        unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
+        BitStack is_left_flags;
         AvlNode **current_ptr = &self->root;
         AvlNode **rotate_root_ptr = &self->root;
         void *previous_value = NULL;
-        size_t current_depth_from_root = 0;
+
+        BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
 
         while (1) {
             AvlNode *const current = *current_ptr;
@@ -201,22 +186,22 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
                 previous_value = current->value;
                 current->value = value;
 
+                BitStack_drop(&is_left_flags);
+
                 return previous_value;
             } else {
                 if (current->balance_factor != 0) {
                     rotate_root_ptr = current_ptr;
-                    current_depth_from_root = 0;
+                    BitStack_clear(&is_left_flags);
                 }
 
                 if (compare < 0) { /* key < current */
-                    setbit(is_left_flags, current_depth_from_root);
+                    BitStack_push_set(&is_left_flags);
                     current_ptr = &current->left;
                 } else { /* key > current, compare > 0 */
-                    clearbit(is_left_flags, current_depth_from_root);
+                    BitStack_push_clear(&is_left_flags);
                     current_ptr = &current->right;
                 }
-
-                ++current_depth_from_root;
 
                 if (!*current_ptr) {
                     *current_ptr = alloc_node(key, value);
@@ -228,8 +213,10 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
             }
         }
 
-        rebalance(is_left_flags, rotate_root_ptr, *current_ptr);
+        rebalance(&is_left_flags, rotate_root_ptr, *current_ptr);
         assert_correct_balance_factors(self->root);
+
+        BitStack_drop(&is_left_flags);
 
         return NULL;
     }
@@ -245,10 +232,7 @@ static AvlNode* alloc_node(void *key, void *value) {
     return node;
 }
 
-static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom);
-
-static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
-                      AvlNode **root_ptr, AvlNode *inserted) {
+static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted) {
     AvlNode *current;
     size_t depth_from_root;
 
@@ -256,8 +240,12 @@ static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
     assert(root_ptr);
     assert(*root_ptr);
 
-    for (depth_from_root = 0, current = *root_ptr; current != inserted; ++depth_from_root) {
-        if (getbit(is_left_flags, depth_from_root)) {
+    for (depth_from_root = BitStack_len(is_left_flags) - 1, current = *root_ptr;
+         current != inserted; --depth_from_root) {
+        const int is_left = BitStack_get(is_left_flags, depth_from_root);
+        assert(is_left != -1);
+
+        if (is_left) {
             --current->balance_factor;
             current = current->left;
         } else {
@@ -266,183 +254,7 @@ static void rebalance(const unsigned long is_left_flags[NUM_FLAG_WORDS],
         }
     }
 
-    *root_ptr = rotate(*root_ptr, getbit(is_left_flags, 0) ? (*root_ptr)->left
-                                                            : (*root_ptr)->right);
-}
-
-static int getbit(const unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
-    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
-
-    const size_t idx = bit / NBITS;
-    const size_t subidx = bit % NBITS;
-
-    assert(idx < NUM_FLAG_WORDS);
-
-    return (arr[idx] & (1ul << subidx)) != 0;
-}
-
-static void setbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
-    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
-
-    const size_t idx = bit / NBITS;
-    const size_t subidx = bit % NBITS;
-
-    assert(idx < NUM_FLAG_WORDS);
-
-    arr[idx] |= (1ul << subidx);
-}
-
-static void clearbit(unsigned long arr[NUM_FLAG_WORDS], size_t bit) {
-    static const size_t NBITS = CHAR_BIT * sizeof(unsigned long);
-
-    const size_t idx = bit / NBITS;
-    const size_t subidx = bit % NBITS;
-
-    assert(NUM_FLAG_WORDS);
-
-    arr[idx] &= ~(1ul << subidx);
-}
-
-static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom);
-
-static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom);
-
-static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom);
-
-static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom);
-
-static AvlNode* rotate(AvlNode *top, AvlNode *middle_or_bottom) {
-    AvlNode *root;
-
-    assert(top);
-    assert(middle_or_bottom);
-    assert(top->left == middle_or_bottom || top->right == middle_or_bottom);
-
-    if (top->balance_factor == -2) {
-        assert(top->left == middle_or_bottom);
-
-        if (middle_or_bottom->balance_factor == -1) {
-            root = rotate_right(top, middle_or_bottom);
-
-            top->balance_factor = 0;
-            middle_or_bottom->balance_factor = 0;
-        } else { /* middle_or_bottom->balance_factor == 1 */
-            AvlNode *child;
-
-            assert(middle_or_bottom->balance_factor == 1);
-            assert(middle_or_bottom->right);
-
-            child = middle_or_bottom->right;
-            root = rotate_leftright(top, middle_or_bottom, child);
-
-            if (child->balance_factor == -1) {
-                top->balance_factor = 1;
-                middle_or_bottom->balance_factor = 0;
-            } else if (child->balance_factor == 0) {
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = 0;
-            } else {
-                assert(child->balance_factor == 1);
-
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = -1;
-            }
-
-            child->balance_factor = 0;
-        }
-    } else if (top->balance_factor == 2) {
-        assert(top->right == middle_or_bottom);
-
-        if (middle_or_bottom->balance_factor == 1) {
-            root = rotate_left(top, middle_or_bottom);
-
-            top->balance_factor = 0;
-            middle_or_bottom->balance_factor = 0;
-        } else { /* middle_or_bottom->balance_factor == -1 */
-            AvlNode *child;
-
-            assert(middle_or_bottom->balance_factor == -1);
-            assert(middle_or_bottom->left);
-
-            child = middle_or_bottom->left;
-            root = rotate_rightleft(top, middle_or_bottom, child);
-
-            if (child->balance_factor == 1) {
-                top->balance_factor = -1;
-                middle_or_bottom->balance_factor = 0;
-            } else if (child->balance_factor == 0) {
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = 0;
-            } else {
-                assert(child->balance_factor == -1);
-
-                top->balance_factor = 0;
-                middle_or_bottom->balance_factor = 1;
-            }
-
-            child->balance_factor = 0;
-        }
-    } else {
-        root = top;
-    }
-
-    return root;
-}
-
-static AvlNode* rotate_leftright(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
-    AvlNode *root;
-
-    assert(top);
-    assert(middle);
-    assert(bottom);
-    assert(top->left == middle);
-    assert(middle->right == bottom);
-    assert(top->balance_factor == -2);
-    assert(middle->balance_factor == 1);
-
-    top->left = rotate_left(middle, bottom);
-    root = rotate_right(top, bottom);
-
-    return root;
-}
-
-static AvlNode* rotate_rightleft(AvlNode *top, AvlNode *middle, AvlNode *bottom) {
-    AvlNode *root;
-
-    assert(top);
-    assert(middle);
-    assert(bottom);
-    assert(top->right == middle);
-    assert(middle->left == bottom);
-    assert(top->balance_factor == 2);
-    assert(middle->balance_factor == -1);
-
-    top->right = rotate_right(middle, bottom);
-    root = rotate_left(top, bottom);
-
-    return root;
-}
-
-static AvlNode* rotate_left(AvlNode *top, AvlNode *bottom) {
-    assert(top);
-    assert(bottom);
-    assert(top->right == bottom);
-
-    top->right = bottom->left;
-    bottom->left = top;
-
-    return bottom;
-}
-
-static AvlNode* rotate_right(AvlNode *top, AvlNode *bottom) {
-    assert(top);
-    assert(bottom);
-    assert(top->left == bottom);
-
-    top->left = bottom->right;
-    bottom->right = top;
-
-    return bottom;
+    *root_ptr = rotate(*root_ptr);
 }
 
 #ifndef NDEBUG
@@ -462,6 +274,11 @@ static int do_assert_balance_factors(const AvlNode *node) {
 }
 #endif
 
+static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
+                        BitStack *is_left_flags);
+
+static size_t max_height(size_t num_nodes);
+
 /**
  *  Removes the value associated with a key as well as the key that
  *  compared equal.
@@ -470,7 +287,275 @@ static int do_assert_balance_factors(const AvlNode *node) {
  *  @returns Nonzero if a (key, value) pair was removed from this map,
  *           zero otherwise.
  */
-int AvlMap_remove(AvlMap *self, const void *key);
+int AvlMap_remove(AvlMap *self, const void *key) {
+    NodeStack nodes;
+    unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
+    BitStack is_left_flags;
+    size_t current_depth = 0;
+    AvlNode **current_ptr;
+
+    assert(self);
+
+    NodeStack_with_capacity(&nodes, max_height(self->len) + 1);
+    BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
+    for (current_ptr = &self->root; *current_ptr; ++current_depth) {
+        AvlNode *const current = *current_ptr;
+        int ordering;
+
+        NodeStack_push(&nodes, current);
+
+        ordering = self->compare(key, current->key, self->compare_arg);
+
+        if (ordering == 0) {
+            break; /* we got em */
+        } else if (ordering < 0 && current->left) {
+            current_ptr = &current->left;
+            BitStack_push_set(&is_left_flags);
+        } else if (ordering > 0 && current->right) {
+            current_ptr = &current->right;
+            BitStack_push_clear(&is_left_flags);
+        } else {
+            BitStack_drop(&is_left_flags);
+            NodeStack_drop(&nodes);
+
+            return 0; /* no such key... */
+        }
+    }
+
+    remove_node(self, current_ptr, &nodes, &is_left_flags);
+    --self->len;
+
+    BitStack_drop(&is_left_flags);
+    NodeStack_drop(&nodes);
+
+    return 1;
+}
+
+static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node);
+
+static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
+                                                 BitStack *is_left_flags);
+
+static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
+                        BitStack *is_left_flags) {
+    AvlNode *node;
+
+    assert(self);
+    assert(node_ptr);
+    assert(*node_ptr);
+    assert(nodes);
+
+    node = *node_ptr;
+
+    if (node->left && node->right) {
+        node = swap_for_delete(nodes, is_left_flags, *node_ptr);
+    } else if (node->left) {
+        *node_ptr = node->left;
+        node->left = NULL;
+    } else if (node->right) {
+        *node_ptr = node->right;
+        node->right = NULL;
+    } else {
+        *node_ptr = NULL;
+    }
+
+    assert(!node->left);
+    assert(!node->right);
+
+    self->deleter(node->key, node->value, self->deleter_arg);
+    free(node);
+
+    NodeStack_pop(nodes);
+
+    update_balance_factors_and_rebalance(self, nodes, is_left_flags);
+    assert_correct_balance_factors(self->root);
+}
+
+/* find inorder sucessor */
+static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node) {
+    AvlNode **successor_ptr;
+    AvlNode *successor;
+
+    assert(nodes);
+    assert(is_left_flags);
+    assert(node);
+    assert(node->left && node->right);
+
+    successor_ptr = &node->right;
+    BitStack_push_clear(is_left_flags);
+    NodeStack_push(nodes, *successor_ptr);
+
+    while ((*successor_ptr)->left) {
+        successor_ptr = &(*successor_ptr)->left;
+        BitStack_push_set(is_left_flags);
+        NodeStack_push(nodes, *successor_ptr);
+    }
+
+    successor = *successor_ptr;
+
+    {
+        void *const temp = node->key;
+        node->key = successor->key;
+        successor->key = temp;
+    }
+
+    {
+        void *const temp = node->value;
+        node->value = successor->value;
+        successor->value = temp;
+    }
+
+    *successor_ptr = successor->right;
+    successor->right = NULL;
+    successor->left = NULL;
+    successor->balance_factor = 0;
+
+    return successor;
+}
+
+static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
+                                                 BitStack *is_left_flags) {
+    assert(nodes);
+    assert(is_left_flags);
+
+    while (1) {
+        AvlNode *const node = NodeStack_pop(nodes);
+        const int is_left = BitStack_pop(is_left_flags);
+        const int parent_dir = BitStack_get(is_left_flags, 0);
+        AvlNode **parent_ptr;
+
+        if (!node || is_left == -1) {
+            break;
+        }
+
+        if (parent_dir == -1) {
+            parent_ptr = &self->root;
+        } else {
+            AvlNode *const parent = NodeStack_get(nodes, -1);
+            assert(parent);
+
+            if (parent_dir) {
+                parent_ptr = &parent->left;
+            } else {
+                parent_ptr = &parent->right;
+            }
+        }
+
+        assert(node == *parent_ptr);
+
+        if (is_left) {
+            ++node->balance_factor;
+
+            if (node->balance_factor == 1) {
+                return;
+            } else if (node->balance_factor == 2) {
+                AvlNode *const middle_or_bottom = node->right;
+                assert(middle_or_bottom);
+
+                if (middle_or_bottom->balance_factor == -1) {
+                    AvlNode *const middle = middle_or_bottom;
+                    AvlNode *const bottom = middle->left;
+
+                    assert(bottom);
+
+                    node->right = rotate_right_unchecked(middle, bottom);
+                    *parent_ptr = rotate_left_unchecked(node, bottom);
+
+                    if (bottom->balance_factor == 1) {
+                        node->balance_factor = -1;
+                        middle->balance_factor = 0;
+                    } else if (bottom->balance_factor == 0) {
+                        node->balance_factor = 0;
+                        middle->balance_factor = 0;
+                    } else {
+                        assert(bottom->balance_factor == -1);
+
+                        node->balance_factor = 0;
+                        middle->balance_factor = 1;
+                    }
+
+                    bottom->balance_factor = 0;
+                } else {
+                    AvlNode *const bottom = middle_or_bottom;
+
+                    *parent_ptr = rotate_left_unchecked(node, bottom);
+
+                    if (bottom->balance_factor == 0) {
+                        bottom->balance_factor = -1;
+                        node->balance_factor = 1;
+
+                        break;
+                    } else {
+                        assert(bottom->balance_factor == 1);
+
+                        bottom->balance_factor = 0;
+                        node->balance_factor = 0;
+                    }
+                }
+            }
+        } else if (!is_left) {
+            --node->balance_factor;
+
+            if (node->balance_factor == -1) {
+                return;
+            } else if (node->balance_factor == -2) {
+                AvlNode *const middle_or_bottom = node->left;
+                assert(middle_or_bottom);
+
+                if (middle_or_bottom->balance_factor == 1) {
+                    AvlNode *const middle = middle_or_bottom;
+                    AvlNode *const bottom = middle->right;
+
+                    assert(bottom);
+
+                    node->left = rotate_left_unchecked(middle, bottom);
+                    *parent_ptr = rotate_right_unchecked(node, bottom);
+
+                    if (bottom->balance_factor == -1) {
+                        node->balance_factor = 1;
+                        middle->balance_factor = 0;
+                    } else if (bottom->balance_factor == 0) {
+                        node->balance_factor = 0;
+                        middle->balance_factor = 0;
+                    } else {
+                        assert(bottom->balance_factor == 1);
+
+                        node->balance_factor = 0;
+                        middle->balance_factor = -1;
+                    }
+
+                    bottom->balance_factor = 0;
+                } else {
+                    AvlNode *const bottom = middle_or_bottom;
+
+                    *parent_ptr = rotate_right_unchecked(node, bottom);
+
+                    if (bottom->balance_factor == 0) {
+                        bottom->balance_factor = 1;
+                        node->balance_factor = -1;
+
+                        break;
+                    } else {
+                        assert(bottom->balance_factor == -1);
+
+                        bottom->balance_factor = 0;
+                        node->balance_factor = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+static double log2(double x);
+
+static size_t max_height(size_t num_nodes) {
+    return (size_t) ceil(1.44 * log2((double) num_nodes + 1.065) - 0.328);
+}
+
+static double log2(double x) {
+    return log(x) / log(2.0);
+}
 
 static void drop(AvlMap *self, AvlNode *node);
 
@@ -495,7 +580,7 @@ void AvlMap_clear(AvlMap *self) {
         AvlNode *next;
 
         while (current->left) {
-            current = rotate_right(current, current->left);
+            current = rotate_right_unchecked(current, current->left);
         }
 
         next = current->right;

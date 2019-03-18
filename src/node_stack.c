@@ -83,8 +83,9 @@ void NodeStack_drop(NodeStack *self) {
  *
  *  @param self Must not be NULL. Must be initialized.
  *  @param node Will be yielded as the next result of pop().
+ *  @returns The new length of this NodeStack.
  */
-void NodeStack_push(NodeStack *self, AvlNode *node) {
+size_t NodeStack_push(NodeStack *self, AvlNode *node) {
     assert(self);
 
     if (self->capacity == self->len) {
@@ -107,6 +108,8 @@ void NodeStack_push(NodeStack *self, AvlNode *node) {
 
     self->data[self->len] = node;
     ++self->len;
+
+    return self->len;
 }
 
 /**
@@ -129,20 +132,56 @@ AvlNode* NodeStack_pop(NodeStack *self) {
 }
 
 /**
- *  Retrieves the AvlNode that is index elements from the top of this
- *  NodeStack, if there is one.
+ *  Retrieves the AvlNode that is index elements from the bottom of
+ *  this NodeStack, if there is one.
  *
  *  @param self Must not be NULL. Must be initialized.
- *  @param index The index of the element to fetch, where 0 is the top.
+ *  @param index The index of the element to fetch. Negative elements
+ *               represent are relative to the top of the stack.
  *  @returns The AvlNode that was index elements from the top of this
  *           NodeStack. If no such element exists, NULL.
  */
-AvlNode* NodeStack_get(const NodeStack *self, size_t index) {
+AvlNode* NodeStack_get(const NodeStack *self, ptrdiff_t index) {
     assert(self);
 
-    if (self->len <= index) {
+    if (index < 0) {
+        index += (ptrdiff_t) self->len;
+    }
+
+    if (index < 0 || (size_t) index >= self->len) {
         return NULL;
     }
 
-    return self->data[self->len - index - 1];
+    return self->data[index];
+}
+
+/**
+ *  Retrieves the AvlNode that is index elements from the bottom of
+ *  this NodeStack, if there is one.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param index The index of the element to fetch. Negative elements
+ *               represent are relative to the top of the stack.
+ *  @returns The AvlNode that was index elements from the top of this
+ *           NodeStack. If no such element exists, NULL.
+ */
+AvlNode** NodeStack_get_mut(NodeStack *self, ptrdiff_t index) {
+    assert(self);
+
+    if (index < 0) {
+        index += (ptrdiff_t) self->len;
+    }
+
+    if (index < 0 || (size_t) index >= self->len) {
+        return NULL;
+    }
+
+    return &self->data[index];
+}
+
+/** @returns The number of elements in this NodeStack. */
+size_t NodeStack_len(const NodeStack *self) {
+    assert(self);
+
+    return self->len;
 }

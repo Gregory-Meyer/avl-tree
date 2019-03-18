@@ -12,7 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include_directories(include src)
 
-add_library(bloodhound STATIC src/map.c src/mem.c src/node_stack.c)
+add_library(bloodhound STATIC src/bit_stack.c src/map.c src/mem.c src/node.c
+                              src/node_stack.c)
 
 option(BLOODHOUND_BUILD_TESTS "Build tests for libbloodhound." ON)
 if(BLOODHOUND_BUILD_TESTS)
@@ -20,7 +21,8 @@ if(BLOODHOUND_BUILD_TESTS)
 
     add_subdirectory(./external/Catch2)
 
-    add_executable(test_bloodhound test/runner.cpp test/get.spec.cpp test/insert.spec.cpp)
+    add_executable(test_bloodhound test/runner.cpp test/get.spec.cpp
+                                   test/insert.spec.cpp test/remove.spec.cpp)
     target_link_libraries(test_bloodhound Catch2::Catch2 bloodhound)
 
     include(CTest)

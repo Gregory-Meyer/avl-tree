@@ -22,7 +22,6 @@
 //  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 //  IN THE SOFTWARE.
-//
 
 #include "bloodhound.h"
 
@@ -55,6 +54,10 @@ public:
         } else {
             return false;
         }
+    }
+
+    bool remove(const K &key) {
+        return AvlMap_remove(&impl_, &key) != 0;
     }
 
     V* get(const K &key) noexcept {
