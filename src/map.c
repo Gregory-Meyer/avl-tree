@@ -46,12 +46,10 @@
  *  @param compare Must not be NULL. Will be used to compare keys as if
  *                 by compare(lhs, rhs, compare_arg). Return values
  *                 should have the same meaning as strcmp and should
- *                 form a total order over the set of keys.
- *  @param compare_arg Passed to compare when invoked.
- *  @param deleter Must not be NULL. Will be used to free key-value
- *                 pairs when they are no longer usable by the tree as
- *                 if by deleter(key, value, deleter_arg).
- *  @param deleter_arg Passed to deleter when invoked.
+ *                 form a total ordering over the set of keys.
+ *  @param deleter Must not be NULL. Will be used to free nodes when
+ *                 they are no longer usable by the tree as if by
+ *                 deleter(node, deleter_arg).
  */
 void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
                 AvlDeleter deleter, void *deleter_arg) {
@@ -81,33 +79,44 @@ void AvlMap_drop(AvlMap *self) {
     AvlMap_clear(self);
 }
 
-static AvlNode* find(const AvlMap *self, const void *key);
-
-static void* value(AvlNode *node);
+static AvlNode* find(const AvlMap *self, const void *key, AvlHetComparator comparator,
+                     void *arg);
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @returns A pointer to the value associated with key. If no such
- *           value is in self, NULL.
+ *  @param comparator Must not be NULL. Must form the same total
+ *                    ordering over the contained elements as the one
+ *                    formed by the comparator passed to AvlMap_new.
+ *                    Will be invoked by comparator(key, node, arg).
+ *  @returns A pointer to the node that compares equal to key, if
+ *           there is one.
  */
-const void* AvlMap_get(const AvlMap *self, const void *key) {
+const AvlNode* AvlMap_get(const AvlMap *self, const void *key, AvlHetComparator comparator,
+                          void *arg) {
     assert(self);
+    assert(comparator);
 
-    return value(find(self, key));
+    return find(self, key, comparator, arg);
 }
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @returns A mutable pointer to the value associated with key. If no
- *           such value is in self, NULL.
+ *  @param comparator Must not be NULL. Must form the same total
+ *                    ordering over the contained elements as the one
+ *                    formed by the comparator passed to AvlMap_new.
+ *                    Will be invoked by comparator(key, node, arg).
+ *  @returns A mutable pointer to the node that compares equal to key,
+ *           if there is one.
  */
-void* AvlMap_get_mut(AvlMap *self, const void *key) {
+AvlNode* AvlMap_get_mut(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg) {
     assert(self);
+    assert(comparator);
 
-    return value(find(self, key));
+    return find(self, key, comparator, arg);
 }
 
-static AvlNode* find(const AvlMap *self, const void *key) {
+static AvlNode* find(const AvlMap *self, const void *key, AvlHetComparator comparator,
+                     void *arg) {
     AvlNode *current;
 
     assert(self);
@@ -115,7 +124,7 @@ static AvlNode* find(const AvlMap *self, const void *key) {
     current = self->root;
 
     while (current) {
-        const int compare = self->compare(key, current->key, self->compare_arg);
+        const int compare = comparator(key, current, arg);
 
         if (compare == 0) {
             return current;
@@ -129,16 +138,6 @@ static AvlNode* find(const AvlMap *self, const void *key) {
     return NULL;
 }
 
-static void* value(AvlNode *node) {
-    if (!node) {
-        return NULL;
-    }
-
-    return node->value;
-}
-
-static AvlNode* alloc_node(void *key, void *value);
-
 static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted);
 
 #ifdef NDEBUG
@@ -151,21 +150,19 @@ static int do_assert_balance_factors(const AvlNode *node);
 #define IS_LEFT_FLAGS_BUF_SZ 3
 
 /**
- *  Inserts a (key, value) pair into an AvlMap, taking ownership of
- *  them.
+ *  Inserts an element into an AvlMap.
  *
  *  @param self Must not be NULL. Must be initialized.
- *  @param key If a key in this AvlMap compares equal, ownership will
- *             remain with the caller and will not be transferred to
- *             the AvlMap.
- *  @returns The previous value associated with key, if it exists.
- *           Ownership is transferred back to the caller in this case.
+ *  @param node Must not be NULL.
+ *  @returns The previous element that compares equal to node, if there
+ *           was one.
  */
-void* AvlMap_insert(AvlMap *self, void *key, void *value) {
+AvlNode* AvlMap_insert(AvlMap *self, AvlNode *node) {
     assert(self);
+    assert(node);
 
     if (!self->root) {
-        self->root = alloc_node(key, value);
+        self->root = node;
         ++self->len;
 
         return NULL;
@@ -174,38 +171,45 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
         BitStack is_left_flags;
         AvlNode **current_ptr = &self->root;
         AvlNode **rotate_root_ptr = &self->root;
-        void *previous_value = NULL;
 
         BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
 
         while (1) {
             AvlNode *const current = *current_ptr;
-            const int compare = self->compare(key, current->key, self->compare_arg);
+            const int compare = self->compare(node, current, self->compare_arg);
 
-            if (compare == 0) { /* key == current */
-                previous_value = current->value;
-                current->value = value;
+            if (compare == 0) { /* node == current */
+                *current_ptr = node;
+                node->left = current->left;
+                node->right = current->right;
+                node->balance_factor = current->balance_factor;
+
+                current->left = NULL;
+                current->right = NULL;
+                current->balance_factor = 0;
 
                 BitStack_drop(&is_left_flags);
 
-                return previous_value;
+                return current;
             } else {
                 if (current->balance_factor != 0) {
                     rotate_root_ptr = current_ptr;
                     BitStack_clear(&is_left_flags);
                 }
 
-                if (compare < 0) { /* key < current */
+                if (compare < 0) { /* node < current */
                     BitStack_push_set(&is_left_flags);
                     current_ptr = &current->left;
-                } else { /* key > current, compare > 0 */
+                } else { /* node > current, compare > 0 */
                     BitStack_push_clear(&is_left_flags);
                     current_ptr = &current->right;
                 }
 
                 if (!*current_ptr) {
-                    *current_ptr = alloc_node(key, value);
-                    assert((*current_ptr)->balance_factor == 0);
+                    *current_ptr = node;
+                    node->left = NULL;
+                    node->right = NULL;
+                    node->balance_factor = 0;
                     ++self->len;
 
                     break;
@@ -220,16 +224,6 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 
         return NULL;
     }
-}
-
-static AvlNode* alloc_node(void *key, void *value) {
-    AvlNode *const node = (AvlNode*) checked_calloc(1, sizeof(AvlNode));
-
-    node->balance_factor = 0;
-    node->key = key;
-    node->value = value;
-
-    return node;
 }
 
 static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted) {
@@ -280,19 +274,22 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
 static size_t max_height(size_t num_nodes);
 
 /**
- *  Removes the value associated with a key as well as the key that
- *  compared equal.
+ *  Removes the node that compares equal to a key.
  *
  *  @param self Must not be NULL.
- *  @returns Nonzero if a (key, value) pair was removed from this map,
- *           zero otherwise.
+ *  @param comparator Must not be NULL. Must form the same total
+ *                    ordering over the contained elements as the one
+ *                    formed by the comparator passed to AvlMap_new.
+ *                    Will be invoked by comparator(key, node, arg).
+ *  @returns The node that compared equal to key, if there was one.
  */
-int AvlMap_remove(AvlMap *self, const void *key) {
+AvlNode* AvlMap_remove(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg) {
     NodeStack nodes;
     unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
     BitStack is_left_flags;
     size_t current_depth = 0;
     AvlNode **current_ptr;
+    AvlNode *to_remove;
 
     assert(self);
 
@@ -300,11 +297,9 @@ int AvlMap_remove(AvlMap *self, const void *key) {
     BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
     for (current_ptr = &self->root; *current_ptr; ++current_depth) {
         AvlNode *const current = *current_ptr;
-        int ordering;
+        const int ordering = comparator(key, current, arg);
 
         NodeStack_push(&nodes, current);
-
-        ordering = self->compare(key, current->key, self->compare_arg);
 
         if (ordering == 0) {
             break; /* we got em */
@@ -318,17 +313,18 @@ int AvlMap_remove(AvlMap *self, const void *key) {
             BitStack_drop(&is_left_flags);
             NodeStack_drop(&nodes);
 
-            return 0; /* no such key... */
+            return 0; /* no such node... */
         }
     }
 
+    to_remove = *current_ptr;
     remove_node(self, current_ptr, &nodes, &is_left_flags);
     --self->len;
 
     BitStack_drop(&is_left_flags);
     NodeStack_drop(&nodes);
 
-    return 1;
+    return to_remove;
 }
 
 static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node);
@@ -348,7 +344,7 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
     node = *node_ptr;
 
     if (node->left && node->right) {
-        node = swap_for_delete(nodes, is_left_flags, *node_ptr);
+        *node_ptr = swap_for_delete(nodes, is_left_flags, *node_ptr);
     } else if (node->left) {
         *node_ptr = node->left;
         node->left = NULL;
@@ -359,11 +355,10 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
         *node_ptr = NULL;
     }
 
+    node->balance_factor = 0;
+
     assert(!node->left);
     assert(!node->right);
-
-    self->deleter(node->key, node->value, self->deleter_arg);
-    free(node);
 
     NodeStack_pop(nodes);
 
@@ -375,6 +370,7 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
 static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node) {
     AvlNode **successor_ptr;
     AvlNode *successor;
+    size_t swap_idx;
 
     assert(nodes);
     assert(is_left_flags);
@@ -383,7 +379,8 @@ static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNo
 
     successor_ptr = &node->right;
     BitStack_push_clear(is_left_flags);
-    NodeStack_push(nodes, *successor_ptr);
+    assert(NodeStack_get(nodes, -1) == node);
+    swap_idx = NodeStack_push(nodes, *successor_ptr) - 2;
 
     while ((*successor_ptr)->left) {
         successor_ptr = &(*successor_ptr)->left;
@@ -393,22 +390,21 @@ static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNo
 
     successor = *successor_ptr;
 
-    {
-        void *const temp = node->key;
-        node->key = successor->key;
-        successor->key = temp;
+    assert(successor);
+    assert(!successor->left);
+
+    if (successor != node->right) {
+        *successor_ptr = successor->right;
+        successor->right = node->right;
     }
 
-    {
-        void *const temp = node->value;
-        node->value = successor->value;
-        successor->value = temp;
-    }
+    successor->left = node->left;
+    successor->balance_factor = node->balance_factor;
 
-    *successor_ptr = successor->right;
-    successor->right = NULL;
-    successor->left = NULL;
-    successor->balance_factor = 0;
+    node->right = NULL;
+    node->left = NULL;
+
+    *NodeStack_get_mut(nodes, (ptrdiff_t) swap_idx) = successor;
 
     return successor;
 }
@@ -557,8 +553,6 @@ static double log2(double x) {
     return log(x) / log(2.0);
 }
 
-static void drop(AvlMap *self, AvlNode *node);
-
 /**
  *  Clears the map, removing all members.
  *
@@ -584,15 +578,10 @@ void AvlMap_clear(AvlMap *self) {
         }
 
         next = current->right;
-        drop(self, current);
+        self->deleter(current, self->deleter_arg);
         current = next;
     }
 
     self->len = 0;
     self->root = NULL;
-}
-
-static void drop(AvlMap *self, AvlNode *node) {
-    self->deleter(node->key, node->value, self->deleter_arg);
-    free(node);
 }
