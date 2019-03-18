@@ -1,4 +1,3 @@
-sudo: required
 dist: xenial
 services: [docker]
 language: c
@@ -16,6 +15,7 @@ jobs:
   include:
     - stage: deploy
       if: branch = master
+      services: []
       before_install:
         - sudo apt-get install -y doxygen
       install:
@@ -34,4 +34,4 @@ jobs:
           keep-history: true
           on:
             branch: master
-          local-dir: doc/html
+          local-dir: build/doc/html
