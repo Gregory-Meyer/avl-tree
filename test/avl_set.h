@@ -29,19 +29,19 @@
 
 namespace avl {
 
-template <typename K, typename V, typename C = std::less<K>>
-class Map {
+template <typename K, typename C = std::less<K>>
+class Set {
 public:
-    Map() noexcept {
-        AvlTree_new(&impl_, Map::comparator, &comparator_, Map::deleter, nullptr);
+    Set() noexcept {
+        AvlTree_new(&impl_, Set::comparator, &comparator_, Set::deleter, nullptr);
     }
 
-    ~Map() {
+    ~Set() {
         AvlTree_drop(&impl_);
     }
 
-    bool insert(const K &key, const V &value) {
-        Node *const node = new Node(key, value);
+    bool insert(const K &key) {
+        Node *const node = new Node(key);
         Node *const previous = reinterpret_cast<Node*>(AvlTree_insert(&impl_, &node->node));
 
         if (previous) {
@@ -55,7 +55,7 @@ public:
 
     bool remove(const K &key) {
         Node *const previous = reinterpret_cast<Node*>(
-            AvlTree_remove(&impl_, &key, Map::het_comparator<K>, &comparator_)
+            AvlTree_remove(&impl_, &key, Set::het_comparator<K>, &comparator_)
         );
 
         if (previous) {
@@ -67,27 +67,15 @@ public:
         return false;
     }
 
-    V* get(const K &key) noexcept {
+    const K* get(const K &key) const noexcept {
         Node *const node = reinterpret_cast<Node*>(
-            AvlTree_get_mut(&impl_, &key, Map::het_comparator<K>, &comparator_)
+            AvlTree_get_mut(&impl_, &key, Set::het_comparator<K>, &comparator_)
         );
 
         if (!node) {
             return nullptr;
         } else {
-            return &node->value;
-        }
-    }
-
-    const V* get(const K &key) const noexcept {
-        const Node *const node = reinterpret_cast<const Node*>(
-            AvlTree_get(&impl_, &key, Map::het_comparator<K>, &comparator_)
-        );
-
-        if (!node) {
-            return nullptr;
-        } else {
-            return node->value;
+            return &node->key;
         }
     }
 
@@ -130,15 +118,12 @@ private:
     }
 
     struct Node {
-        template <typename L, typename W>
-        Node(L &&l, W &&w)
-        noexcept(std::is_nothrow_constructible<K, L>::value
-                 && std::is_nothrow_constructible<V, W>::value)
-        : key(std::forward<L>(l)), value(std::forward<W>(w)) { }
+        template <typename L>
+        Node(L &&l) noexcept(std::is_nothrow_constructible<K, L>::value)
+        : key(std::forward<L>(l)) { }
 
         AvlNode node = {nullptr, nullptr, 0};
         K key;
-        V value;
     };
 
     AvlTree impl_;
