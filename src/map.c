@@ -148,6 +148,8 @@ static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode
 static int do_assert_balance_factors(const AvlNode *node);
 #endif
 
+#define IS_LEFT_FLAGS_BUF_SZ 3
+
 /**
  *  Inserts a (key, value) pair into an AvlMap, taking ownership of
  *  them.
@@ -168,12 +170,13 @@ void* AvlMap_insert(AvlMap *self, void *key, void *value) {
 
         return NULL;
     } else {
+        unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
         BitStack is_left_flags;
         AvlNode **current_ptr = &self->root;
         AvlNode **rotate_root_ptr = &self->root;
         void *previous_value = NULL;
 
-        BitStack_new(&is_left_flags);
+        BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
 
         while (1) {
             AvlNode *const current = *current_ptr;
@@ -284,6 +287,7 @@ static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
  */
 int AvlMap_remove(AvlMap *self, const void *key) {
     NodeStack nodes;
+    unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
     BitStack is_left_flags;
     size_t current_depth = 0;
     AvlNode **current_ptr;
@@ -291,7 +295,7 @@ int AvlMap_remove(AvlMap *self, const void *key) {
     assert(self);
 
     NodeStack_new(&nodes);
-    BitStack_new(&is_left_flags);
+    BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
     for (current_ptr = &self->root; *current_ptr; ++current_depth) {
         AvlNode *const current = *current_ptr;
         int ordering;
