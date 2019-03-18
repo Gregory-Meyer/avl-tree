@@ -39,19 +39,19 @@
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
 
 /**
- *  Initializes an empty AvlMap.
+ *  Initializes an empty AvlTree.
  *
  *  @param self Must not be NULL. Must not be initialized.
- *  @param compare Must not be NULL. Will be used to compare keys as if
+ *  @param compare Must not be NULL. Will be invoked to compare nodes
  *                 by compare(lhs, rhs, compare_arg). Return values
  *                 should have the same meaning as strcmp and should
- *                 form a total ordering over the set of keys.
+ *                 form a total ordering over the set of nodes.
  *  @param deleter Must not be NULL. Will be used to free nodes when
  *                 they are no longer usable by the tree as if by
  *                 deleter(node, deleter_arg).
  */
-void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
-                AvlDeleter deleter, void *deleter_arg) {
+void AvlTree_new(AvlTree *self, AvlComparator compare, void *compare_arg,
+                 AvlDeleter deleter, void *deleter_arg) {
     assert(self);
     assert(compare);
     assert(deleter);
@@ -65,72 +65,69 @@ void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
 }
 
 /**
- *  Drops an AvlMap, removing all members.
+ *  Drops an AvlTree, removing all members.
  *
- *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
- *  complexity.
+ *  Equivalent to AvlTree_clear.
  *
  *  @param self Must not be NULL. Must be initialized.
  */
-void AvlMap_drop(AvlMap *self) {
+void AvlTree_drop(AvlTree *self) {
     assert(self);
 
-    AvlMap_clear(self);
+    AvlTree_clear(self);
 }
 
-static AvlNode* find(const AvlMap *self, const void *key, AvlHetComparator comparator,
-                     void *arg);
+static AvlNode* find(AvlNode *root, const void *key, AvlHetComparator comparator, void *arg);
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @param comparator Must not be NULL. Must form the same total
- *                    ordering over the contained elements as the one
- *                    formed by the comparator passed to AvlMap_new.
- *                    Will be invoked by comparator(key, node, arg).
+ *  @param compare Must not be NULL. Must form the same total ordering
+ *                 over the contained elements as the one formed by one
+ *                 passed to AvlTree_new. Will be invoked by
+ *                 compare(key, node, arg).
  *  @returns A pointer to the node that compares equal to key, if
  *           there is one.
  */
-const AvlNode* AvlMap_get(const AvlMap *self, const void *key, AvlHetComparator comparator,
-                          void *arg) {
+const AvlNode* AvlTree_get(const AvlTree *self, const void *key,
+                           AvlHetComparator compare, void *arg) {
     assert(self);
-    assert(comparator);
+    assert(compare);
 
-    return find(self, key, comparator, arg);
+    return find(self->root, key, compare, arg);
 }
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @param comparator Must not be NULL. Must form the same total
- *                    ordering over the contained elements as the one
- *                    formed by the comparator passed to AvlMap_new.
- *                    Will be invoked by comparator(key, node, arg).
+ *  @param compare Must not be NULL. Must form the same total ordering
+ *                 over the contained elements as the one formed by one
+ *                 passed to AvlTree_new. Will be invoked by
+ *                 compare(key, node, arg).
  *  @returns A mutable pointer to the node that compares equal to key,
  *           if there is one.
  */
-AvlNode* AvlMap_get_mut(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg) {
+AvlNode* AvlTree_get_mut(AvlTree *self, const void *key, AvlHetComparator compare, void *arg) {
     assert(self);
-    assert(comparator);
+    assert(compare);
 
-    return find(self, key, comparator, arg);
+    return find(self->root, key, compare, arg);
 }
 
-static AvlNode* find(const AvlMap *self, const void *key, AvlHetComparator comparator,
-                     void *arg) {
-    AvlNode *current;
+static AvlNode* find(AvlNode *root, const void *key, AvlHetComparator comparator, void *arg) {
+    assert(comparator);
 
-    assert(self);
+    if (!root) {
+        return NULL;
+    }
 
-    current = self->root;
+    while (root) {
+        const int ordering = comparator(key, root, arg);
 
-    while (current) {
-        const int compare = comparator(key, current, arg);
-
-        if (compare == 0) {
-            return current;
-        } else if (compare < 0) {
-            current = current->left;
-        } else { /* compare > 0 */
-            current = current->right;
+        if (ordering == 0) {
+            return root;
+        } else if (ordering < 0) {
+            root = root->left;
+        } else { /* ordering > 0 */
+            root = root->right;
         }
     }
 
@@ -146,17 +143,18 @@ static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode
 static int do_assert_balance_factors(const AvlNode *node);
 #endif
 
+/* at least 96 bits - enough to traverse a tree with 2^63 - 1 nodes */
 #define IS_LEFT_FLAGS_BUF_SZ 3
 
 /**
- *  Inserts an element into an AvlMap.
+ *  Inserts an element into an AvlTree.
  *
  *  @param self Must not be NULL. Must be initialized.
  *  @param node Must not be NULL.
  *  @returns The previous element that compares equal to node, if there
  *           was one.
  */
-AvlNode* AvlMap_insert(AvlMap *self, AvlNode *node) {
+AvlNode* AvlTree_insert(AvlTree *self, AvlNode *node) {
     assert(self);
     assert(node);
 
@@ -267,7 +265,7 @@ static int do_assert_balance_factors(const AvlNode *node) {
 }
 #endif
 
-static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
+static void remove_node(AvlTree *self, AvlNode **node_ptr, NodeStack *nodes,
                         BitStack *is_left_flags);
 
 static size_t max_height(size_t num_nodes);
@@ -276,13 +274,13 @@ static size_t max_height(size_t num_nodes);
  *  Removes the node that compares equal to a key.
  *
  *  @param self Must not be NULL.
- *  @param comparator Must not be NULL. Must form the same total
- *                    ordering over the contained elements as the one
- *                    formed by the comparator passed to AvlMap_new.
- *                    Will be invoked by comparator(key, node, arg).
+ *  @param compare Must not be NULL. Must form the same total
+ *                 ordering over the set of nodes as the one
+ *                 passed to AvlTree_new. Will be invoked to compare
+ *                 the key to nodes by compare(key, node, arg).
  *  @returns The node that compared equal to key, if there was one.
  */
-AvlNode* AvlMap_remove(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg) {
+AvlNode* AvlTree_remove(AvlTree *self, const void *key, AvlHetComparator compare, void *arg) {
     NodeStack nodes;
     unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
     BitStack is_left_flags;
@@ -291,12 +289,13 @@ AvlNode* AvlMap_remove(AvlMap *self, const void *key, AvlHetComparator comparato
     AvlNode *to_remove;
 
     assert(self);
+    assert(compare);
 
     NodeStack_with_capacity(&nodes, max_height(self->len) + 1);
     BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
     for (current_ptr = &self->root; *current_ptr; ++current_depth) {
         AvlNode *const current = *current_ptr;
-        const int ordering = comparator(key, current, arg);
+        const int ordering = compare(key, current, arg);
 
         NodeStack_push(&nodes, current);
 
@@ -328,10 +327,10 @@ AvlNode* AvlMap_remove(AvlMap *self, const void *key, AvlHetComparator comparato
 
 static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNode *node);
 
-static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
+static void update_balance_factors_and_rebalance(AvlTree *self, NodeStack *nodes,
                                                  BitStack *is_left_flags);
 
-static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
+static void remove_node(AvlTree *self, AvlNode **node_ptr, NodeStack *nodes,
                         BitStack *is_left_flags) {
     AvlNode *node;
 
@@ -408,7 +407,7 @@ static AvlNode* swap_for_delete(NodeStack *nodes, BitStack *is_left_flags, AvlNo
     return successor;
 }
 
-static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
+static void update_balance_factors_and_rebalance(AvlTree *self, NodeStack *nodes,
                                                  BitStack *is_left_flags) {
     assert(nodes);
     assert(is_left_flags);
@@ -553,13 +552,11 @@ static double log2(double x) {
 }
 
 /**
- *  Clears the map, removing all members.
- *
- *  Runs in O(1) stack frames and O(n) time complexity.
+ *  Clears the tree, removing all members.
  *
  *  @param self Must not be NULL. Must be initialized.
  */
-void AvlMap_clear(AvlMap *self) {
+void AvlTree_clear(AvlTree *self) {
     AvlNode *current;
 
     assert(self);

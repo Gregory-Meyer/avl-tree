@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-typedef struct AvlMap AvlMap;
+typedef struct AvlTree AvlTree;
 typedef struct AvlNode AvlNode;
 
 /* int compare(const AvlNode *lhs, const AvlNode *rhs, void *arg); */
@@ -52,85 +52,82 @@ typedef void (*AvlTraverseMutCb)(void*, AvlNode*);
 typedef void (*AvlDeleter)(AvlNode*, void*);
 
 /**
- *  Initializes an empty AvlMap.
+ *  Initializes an empty AvlTree.
  *
  *  @param self Must not be NULL. Must not be initialized.
- *  @param compare Must not be NULL. Will be used to compare keys as if
+ *  @param compare Must not be NULL. Will be invoked to compare nodes
  *                 by compare(lhs, rhs, compare_arg). Return values
  *                 should have the same meaning as strcmp and should
- *                 form a total ordering over the set of keys.
+ *                 form a total ordering over the set of nodes.
  *  @param deleter Must not be NULL. Will be used to free nodes when
  *                 they are no longer usable by the tree as if by
  *                 deleter(node, deleter_arg).
  */
-void AvlMap_new(AvlMap *self, AvlComparator compare, void *compare_arg,
-                AvlDeleter deleter, void *deleter_arg);
+void AvlTree_new(AvlTree *self, AvlComparator compare, void *compare_arg,
+                 AvlDeleter deleter, void *deleter_arg);
 
 /**
- *  Drops an AvlMap, removing all members.
+ *  Drops an AvlTree, removing all members.
  *
- *  Equivalent to AvlMap_clear. Runs in O(1) stack frames and O(n) time
- *  complexity.
+ *  Equivalent to AvlTree_clear.
  *
  *  @param self Must not be NULL. Must be initialized.
  */
-void AvlMap_drop(AvlMap *self);
+void AvlTree_drop(AvlTree *self);
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @param comparator Must not be NULL. Must form the same total
- *                    ordering over the contained elements as the one
- *                    formed by the comparator passed to AvlMap_new.
- *                    Will be invoked by comparator(key, node, arg).
+ *  @param compare Must not be NULL. Must form the same total ordering
+ *                 over the contained elements as the one formed by one
+ *                 passed to AvlTree_new. Will be invoked by
+ *                 compare(key, node, arg).
  *  @returns A pointer to the node that compares equal to key, if
  *           there is one.
  */
-const AvlNode* AvlMap_get(const AvlMap *self, const void *key, AvlHetComparator comparator,
-                          void *arg);
+const AvlNode* AvlTree_get(const AvlTree *self, const void *key,
+                           AvlHetComparator compare, void *arg);
 
 /**
  *  @param self Must not be NULL. Must be initialized.
- *  @param comparator Must not be NULL. Must form the same total
- *                    ordering over the contained elements as the one
- *                    formed by the comparator passed to AvlMap_new.
- *                    Will be invoked by comparator(key, node, arg).
+ *  @param compare Must not be NULL. Must form the same total ordering
+ *                 over the contained elements as the one formed by one
+ *                 passed to AvlTree_new. Will be invoked by
+ *                 compare(key, node, arg).
  *  @returns A mutable pointer to the node that compares equal to key,
  *           if there is one.
  */
-AvlNode* AvlMap_get_mut(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg);
+AvlNode* AvlTree_get_mut(AvlTree *self, const void *key, AvlHetComparator compare, void *arg);
 
 /**
- *  Inserts an element into an AvlMap.
+ *  Inserts an element into an AvlTree.
  *
  *  @param self Must not be NULL. Must be initialized.
  *  @param node Must not be NULL.
  *  @returns The previous element that compares equal to node, if there
  *           was one.
  */
-AvlNode* AvlMap_insert(AvlMap *self, AvlNode *node);
+AvlNode* AvlTree_insert(AvlTree *self, AvlNode *node);
 
 /**
  *  Removes the node that compares equal to a key.
  *
  *  @param self Must not be NULL.
- *  @param comparator Must not be NULL. Must form the same total
- *                    ordering over the contained elements as the one
- *                    formed by the comparator passed to AvlMap_new.
- *                    Will be invoked by comparator(key, node, arg).
+ *  @param compare Must not be NULL. Must form the same total
+ *                 ordering over the set of nodes as the one
+ *                 passed to AvlTree_new. Will be invoked to compare
+ *                 the key to nodes by compare(key, node, arg).
  *  @returns The node that compared equal to key, if there was one.
  */
-AvlNode* AvlMap_remove(AvlMap *self, const void *key, AvlHetComparator comparator, void *arg);
+AvlNode* AvlTree_remove(AvlTree *self, const void *key, AvlHetComparator compare, void *arg);
 
 /**
- *  Clears the map, removing all members.
- *
- *  Runs in O(1) stack frames and O(n) time complexity.
+ *  Clears the tree, removing all members.
  *
  *  @param self Must not be NULL. Must be initialized.
  */
-void AvlMap_clear(AvlMap *self);
+void AvlTree_clear(AvlTree *self);
 
-struct AvlMap {
+struct AvlTree {
     AvlNode *root;
     size_t len;
     AvlComparator compare;
@@ -139,11 +136,10 @@ struct AvlMap {
     void *deleter_arg;
 };
 
-/** AVL Tree node. */
 struct AvlNode {
     AvlNode *left;
     AvlNode *right;
-    signed char balance_factor; /* on a 64-bit architecture this is <= 90 */
+    signed char balance_factor; /* one of {-2, -1, 0, 1, -2} */
 };
 
 #ifdef __cplusplus
