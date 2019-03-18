@@ -277,6 +277,8 @@ static int do_assert_balance_factors(const AvlNode *node) {
 static void remove_node(AvlMap *self, AvlNode **node_ptr, NodeStack *nodes,
                         BitStack *is_left_flags);
 
+static size_t max_height(size_t num_nodes);
+
 /**
  *  Removes the value associated with a key as well as the key that
  *  compared equal.
@@ -294,7 +296,7 @@ int AvlMap_remove(AvlMap *self, const void *key) {
 
     assert(self);
 
-    NodeStack_new(&nodes);
+    NodeStack_with_capacity(&nodes, max_height(self->len) + 1);
     BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
     for (current_ptr = &self->root; *current_ptr; ++current_depth) {
         AvlNode *const current = *current_ptr;
@@ -543,6 +545,16 @@ static void update_balance_factors_and_rebalance(AvlMap *self, NodeStack *nodes,
             }
         }
     }
+}
+
+static double log2(double x);
+
+static size_t max_height(size_t num_nodes) {
+    return (size_t) ceil(1.44 * log2((double) num_nodes + 1.065) - 0.328);
+}
+
+static double log2(double x) {
+    return log(x) / log(2.0);
 }
 
 static void drop(AvlMap *self, AvlNode *node);
