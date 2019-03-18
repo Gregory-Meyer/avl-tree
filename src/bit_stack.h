@@ -52,6 +52,17 @@ void BitStack_new(BitStack *self);
 void BitStack_with_capacity(BitStack *self, size_t capacity);
 
 /**
+ *  Initializes an empty BitStack that will initially use the adopted
+ *  slice of memory until it fills up.
+ *
+ *  @param self Must not be NULL. Must not be initialized.
+ *  @param data Must point to a buffer at least len * sizeof(unsigned
+ *              long) bytes long.
+ *  @param len Must be > 0.
+ */
+void BitStack_from_adopted_slice(BitStack *self, unsigned long *data, size_t len);
+
+/**
  *  Drops a BitStack, deallocating all owned resources.
  *
  *  @param self Must not be NULL. Must be initialized.
@@ -108,6 +119,7 @@ struct BitStack {
     unsigned long *data;
     size_t len;
     size_t capacity;
+    int is_owned;
 };
 
 #ifdef __cplusplus

@@ -45,6 +45,7 @@ void BitStack_new(BitStack *self) {
     self->data = NULL;
     self->len = 0;
     self->capacity = 0;
+    self->is_owned = 1;
 }
 
 static size_t div_towards_inf(size_t x, size_t y) {
@@ -74,6 +75,26 @@ void BitStack_with_capacity(BitStack *self, size_t capacity) {
     self->data = checked_malloc(sizeof(unsigned long) * num_words);
     self->len = 0;
     self->capacity = num_words * BITS_PER_WORD;
+    self->is_owned = 1;
+}
+
+/**
+ *  Initializes an empty BitStack that will initially use the adopted
+ *  slice of memory until it fills up.
+ *
+ *  @param self Must not be NULL. Must not be initialized.
+ *  @param data Must point to a buffer at least len * sizeof(unsigned
+ *              long) bytes long.
+ *  @param len Must be > 0.
+ */
+void BitStack_from_adopted_slice(BitStack *self, unsigned long *data, size_t len) {
+    assert(self);
+    assert(data);
+
+    self->data = data;
+    self->len = 0;
+    self->capacity = len;
+    self->is_owned = 0;
 }
 
 /**
@@ -148,7 +169,12 @@ static void grow_if_full(BitStack *self) {
     } else {
         const size_t new_word_count = (self->capacity / BITS_PER_WORD + 1) * 3 / 2;
 
-        self->data = checked_realloc(self->data, sizeof(unsigned long) * new_word_count);
+        if (self->is_owned) {
+            self->data = checked_realloc(self->data, sizeof(unsigned long) * new_word_count);
+        } else {
+            self->data = checked_malloc(sizeof(unsigned long) * new_word_count);
+        }
+
         self->capacity = new_word_count * BITS_PER_WORD;
     }
 }
