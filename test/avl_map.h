@@ -23,6 +23,9 @@
 //  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 //  IN THE SOFTWARE.
 
+#ifndef AVL_MAP_H
+#define AVL_MAP_H
+
 #include "bloodhound.h"
 
 #include <functional>
@@ -53,33 +56,44 @@ public:
     template <typename L, typename W,
               typename std::enable_if<std::is_constructible<K, L>::value
                                       && std::is_constructible<V, W>::value, int>::type = 0>
-    bool insert(L &&key, W &&value) {
+    std::pair<std::pair<K, V>&, bool> insert(L &&key, W &&value) {
         Node *const node = new Node(std::forward<L>(key), std::forward<W>(value));
         Node *const previous = reinterpret_cast<Node*>(AvlTree_insert(&impl_, &node->node));
 
         if (previous) {
             delete previous;
 
-            return true;
+            return {node->kv, true};
         }
 
-        return false;
+        return {node->kv, false};
     }
 
     template <typename L, typename W,
               typename std::enable_if<std::is_constructible<K, L>::value
-                                      && std::is_constructible<V, W>::value, int>::type = 0,
+                                      && std::is_constructible<V, W>::value
+                                      && std::is_assignable<V&, W>::value, int>::type = 0,
               typename = decltype(std::declval<const typename std::decay<L>::type&>() < std::declval<const K&>()),
               typename = decltype(std::declval<const K&>() < std::declval<const typename std::decay<L>::type&>())>
-    bool insert_or_assign(L &&key, W &&value) {
+    std::pair<std::pair<K, V>&, bool> insert_or_assign(L &&key, W &&value) {
+        using T = typename std::decay<L>::type;
+
         std::pair<L&&, W&&> kv(std::forward<L>(key), std::forward<W>(value));
-        const typename std::decay<L>::type &key_ref = key;
+        const T &key_ref = key;
         int inserted;
 
-        AvlTree_get_or_insert(&impl_, &key_ref, Map::het_comparator<typename std::decay<L>::type>,
-                              &comparator_, Map::do_insert<L, W>, &kv, &inserted);
+        Node *const node = reinterpret_cast<Node*>(
+            AvlTree_get_or_insert(&impl_, &key_ref, Map::het_comparator<T>,
+                                  &comparator_, Map::do_insert<L, W>, &kv, &inserted)
+        );
 
-        return inserted != 0;
+        if (!inserted) {
+            node->kv.second = std::forward<W>(value);
+
+            return {node->kv, false};
+        }
+
+        return {node->kv, true};
     }
 
     bool remove(const K &key) {
@@ -185,3 +199,5 @@ private:
 };
 
 } // namespace avl
+
+#endif
