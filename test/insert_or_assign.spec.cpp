@@ -24,11 +24,8 @@
 //  IN THE SOFTWARE.
 
 #include "avl_map.h"
+#include "util.h"
 
-#include <algorithm>
-#include <map>
-#include <numeric>
-#include <random>
 #include <vector>
 
 #include <catch2/catch.hpp>
@@ -39,9 +36,84 @@ TEST_CASE("insert or assign") {
     avl::Map<std::string, int> map;
 
     std::string s(LONG_STRING);
-    REQUIRE(map.insert_or_assign(std::move(s), 42));
+    REQUIRE(map.insert_or_assign(std::move(s), 42).second);
     REQUIRE(s.empty()); // moved from
     s = LONG_STRING;
-    REQUIRE_FALSE(map.insert_or_assign(std::move(s), 42));
+    REQUIRE_FALSE(map.insert_or_assign(std::move(s), 42).second);
     REQUIRE(s == LONG_STRING); // not moved from
+}
+
+constexpr std::size_t NUM_INSERTIONS = 2048;
+
+TEST_CASE("insert or assign, sorted insertion + sorted assignment") {
+    avl::Map<int, int> map;
+    const std::vector<int> to_insert = iota(NUM_INSERTIONS);
+
+    for (int i : to_insert) {
+        REQUIRE(map.insert_or_assign(i, i).second);
+    }
+
+    for (int i : to_insert) {
+        const auto ret = map.insert_or_assign(i, i * 2);
+
+        REQUIRE_FALSE(ret.second);
+        REQUIRE(ret.first.second == i * 2);
+    }
+}
+
+TEST_CASE("insert or assign, sorted insertion + random assignment") {
+    avl::Map<int, int> map;
+    std::vector<int> to_insert = iota(NUM_INSERTIONS);
+
+    for (int i : to_insert) {
+        REQUIRE(map.insert_or_assign(i, i).second);
+    }
+
+    const auto urbg_ptr = make_urbg();
+    to_insert = shuffled(std::move(to_insert), *urbg_ptr);
+
+    for (int i : to_insert) {
+        const auto ret = map.insert_or_assign(i, i * 2);
+
+        REQUIRE_FALSE(ret.second);
+        REQUIRE(ret.first.second == i * 2);
+    }
+}
+
+TEST_CASE("insert or assign, random insertion + sorted assignment") {
+    avl::Map<int, int> map;
+    const auto urbg_ptr = make_urbg();
+    std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
+
+    for (int i : to_insert) {
+        REQUIRE(map.insert_or_assign(i, i).second);
+    }
+
+    to_insert = sorted(std::move(to_insert));
+
+    for (int i : to_insert) {
+        const auto ret = map.insert_or_assign(i, i * 2);
+
+        REQUIRE_FALSE(ret.second);
+        REQUIRE(ret.first.second == i * 2);
+    }
+}
+
+TEST_CASE("insert or assign, random insertion + random assignment") {
+    avl::Map<int, int> map;
+    const auto urbg_ptr = make_urbg();
+    std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
+
+    for (int i : to_insert) {
+        REQUIRE(map.insert_or_assign(i, i).second);
+    }
+
+    to_insert = shuffled(std::move(to_insert), *urbg_ptr);
+
+    for (int i : to_insert) {
+        const auto ret = map.insert_or_assign(i, i * 2);
+
+        REQUIRE_FALSE(ret.second);
+        REQUIRE(ret.first.second == i * 2);
+    }
 }
