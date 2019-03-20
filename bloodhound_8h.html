@@ -143,6 +143,9 @@ Functions</h2></td></tr>
 <tr class="memitem:af92cd19f8b053c57fc68468416b49f6c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structAvlNode.html">AvlNode</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="bloodhound_8h.html#af92cd19f8b053c57fc68468416b49f6c">AvlTree_insert</a> (<a class="el" href="structAvlTree.html">AvlTree</a> *self, <a class="el" href="structAvlNode.html">AvlNode</a> *node)</td></tr>
 <tr class="memdesc:af92cd19f8b053c57fc68468416b49f6c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Inserts an element into an <a class="el" href="structAvlTree.html" title="AVL self-balancing binary search tree. ">AvlTree</a>.  <a href="#af92cd19f8b053c57fc68468416b49f6c">More...</a><br /></td></tr>
 <tr class="separator:af92cd19f8b053c57fc68468416b49f6c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a644396c509a8241ee80b75b159749a32"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structAvlNode.html">AvlNode</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="bloodhound_8h.html#a644396c509a8241ee80b75b159749a32">AvlTree_get_or_insert</a> (<a class="el" href="structAvlTree.html">AvlTree</a> *self, const void *key, AvlHetComparator compare, void *compare_arg, <a class="el" href="structAvlNode.html">AvlNode</a> *(*insert)(const void *, void *), void *insert_arg, int *inserted)</td></tr>
+<tr class="memdesc:a644396c509a8241ee80b75b159749a32"><td class="mdescLeft">&#160;</td><td class="mdescRight">Inserts an element into an <a class="el" href="structAvlTree.html" title="AVL self-balancing binary search tree. ">AvlTree</a> if no element with a matching key is found.  <a href="#a644396c509a8241ee80b75b159749a32">More...</a><br /></td></tr>
+<tr class="separator:a644396c509a8241ee80b75b159749a32"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a352f7e43350385c0b33a76268951aad7"><td class="memItemLeft" align="right" valign="top"><a class="el" href="structAvlNode.html">AvlNode</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="bloodhound_8h.html#a352f7e43350385c0b33a76268951aad7">AvlTree_remove</a> (<a class="el" href="structAvlTree.html">AvlTree</a> *self, const void *key, AvlHetComparator compare, void *arg)</td></tr>
 <tr class="memdesc:a352f7e43350385c0b33a76268951aad7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Removes the node that compares equal to a key.  <a href="#a352f7e43350385c0b33a76268951aad7">More...</a><br /></td></tr>
 <tr class="separator:a352f7e43350385c0b33a76268951aad7"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -291,6 +294,74 @@ Functions</h2></td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A mutable pointer to the node that compares equal to key, if there is one. </dd></dl>
+
+</div>
+</div>
+<a class="anchor" id="a644396c509a8241ee80b75b159749a32"></a>
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="structAvlNode.html">AvlNode</a>* AvlTree_get_or_insert </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structAvlTree.html">AvlTree</a> *&#160;</td>
+          <td class="paramname"><em>self</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>key</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">AvlHetComparator&#160;</td>
+          <td class="paramname"><em>compare</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>compare_arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="structAvlNode.html">AvlNode</a> *(*)(const void *, void *)&#160;</td>
+          <td class="paramname"><em>insert</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>insert_arg</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>inserted</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Inserts an element into an <a class="el" href="structAvlTree.html" title="AVL self-balancing binary search tree. ">AvlTree</a> if no element with a matching key is found. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">self</td><td>Must not be NULL. Must be initialized. </td></tr>
+    <tr><td class="paramname">compare</td><td>Must not be NULL. Must form the same total ordering over the contained elements as the one formed by one passed to AvlTree_new. Will be invoked by compare(key, node, compare_arg). </td></tr>
+    <tr><td class="paramname">insert</td><td>Must not be NULL. If no element that compares equal to key is found, will be invoked by insert(key, insert_arg) to obtain a new node. Its return value must compare equal to key. </td></tr>
+    <tr><td class="paramname">inserted</td><td>If not NULL, will be set to 1 if insert was called. Otherwise will be set to 0. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The element that compares equal to key or was just inserted. </dd></dl>
 
 </div>
 </div>
