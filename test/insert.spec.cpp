@@ -24,6 +24,7 @@
 //  IN THE SOFTWARE.
 
 #include "avl_map.h"
+#include "util.h"
 
 #include <algorithm>
 #include <map>
@@ -36,23 +37,23 @@
 TEST_CASE("string insertion") {
     avl::Map<std::string, int> map;
 
-    REQUIRE_FALSE(map.insert("foo", 5));
-    REQUIRE(map.insert("foo", 5));
+    REQUIRE_FALSE(map.insert("foo", 5).second);
+    REQUIRE(map.insert("foo", 5).second);
 
-    REQUIRE_FALSE(map.insert("bar", 10));
-    REQUIRE(map.insert("foo", 5));
-    REQUIRE(map.insert("bar", 10));
+    REQUIRE_FALSE(map.insert("bar", 10).second);
+    REQUIRE(map.insert("foo", 5).second);
+    REQUIRE(map.insert("bar", 10).second);
 
-    REQUIRE_FALSE(map.insert("baz", 15));
-    REQUIRE(map.insert("foo", 5));
-    REQUIRE(map.insert("bar", 10));
-    REQUIRE(map.insert("baz", 15));
+    REQUIRE_FALSE(map.insert("baz", 15).second);
+    REQUIRE(map.insert("foo", 5).second);
+    REQUIRE(map.insert("bar", 10).second);
+    REQUIRE(map.insert("baz", 15).second);
 
-    REQUIRE_FALSE(map.insert("qux", 20));
-    REQUIRE(map.insert("foo", 5));
-    REQUIRE(map.insert("bar", 10));
-    REQUIRE(map.insert("baz", 15));
-    REQUIRE(map.insert("qux", 20));
+    REQUIRE_FALSE(map.insert("qux", 20).second);
+    REQUIRE(map.insert("foo", 5).second);
+    REQUIRE(map.insert("bar", 10).second);
+    REQUIRE(map.insert("baz", 15).second);
+    REQUIRE(map.insert("qux", 20).second);
 }
 
 constexpr int NUM_INSERTIONS = 2048;
@@ -62,11 +63,11 @@ TEST_CASE("sorted insertion") {
     std::vector<int> inserted;
 
     for (int i = 0; i < NUM_INSERTIONS; ++i) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
         inserted.push_back(i);
 
         for (int j : inserted) {
-            REQUIRE(map.insert(j, j));
+            REQUIRE(map.insert(j, j).second);
         }
     }
 }
@@ -74,18 +75,17 @@ TEST_CASE("sorted insertion") {
 TEST_CASE("random insertion") {
     avl::Map<int, int> map;
 
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
-    std::shuffle(to_insert.begin(), to_insert.end(), std::mt19937());
+    const auto urbg_ptr = make_urbg();
+    const std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
 
     std::vector<int> inserted;
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
         inserted.push_back(i);
 
         for (int j : inserted) {
-            REQUIRE(map.insert(j, j));
+            REQUIRE(map.insert(j, j).second);
         }
     }
 }

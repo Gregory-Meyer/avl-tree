@@ -24,6 +24,7 @@
 //  IN THE SOFTWARE.
 
 #include "avl_map.h"
+#include "util.h"
 
 #include <algorithm>
 #include <map>
@@ -37,105 +38,86 @@ constexpr std::size_t NUM_INSERTIONS = 2048;
 
 TEST_CASE("sorted insert, sorted remove") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
+    const std::vector<int> to_insert = iota(NUM_INSERTIONS);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    std::map<int, int> contained;
-    std::transform(to_insert.cbegin(), to_insert.cend(),
-                   std::inserter(contained, contained.begin()),
-                   [](int i) { return std::make_pair(i, i); });
+    std::vector<int> contained = reversed(std::vector<int>(to_insert));
 
     for (int i : to_insert) {
         REQUIRE(map.remove(i));
-        contained.erase(i);
+        contained.pop_back();
 
-        for (auto jj : contained) {
-            REQUIRE(map.get(jj.first));
+        for (int j : contained) {
+            REQUIRE(map.get(j));
         }
     }
 }
 
 TEST_CASE("sorted insert, random remove") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
+    std::vector<int> to_insert = iota(NUM_INSERTIONS);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    const auto urbg_ptr = make_urbg();
+    const std::vector<int> to_remove = shuffled(std::move(to_insert), *urbg_ptr);
+    std::vector<int> contained = reversed(std::vector<int>(to_remove));
 
-    std::map<int, int> contained;
-    std::transform(to_insert.cbegin(), to_insert.cend(),
-                   std::inserter(contained, contained.begin()),
-                   [](int i) { return std::make_pair(i, i); });
-
-    for (int i : to_insert) {
+    for (int i : to_remove) {
         REQUIRE(map.remove(i));
-        contained.erase(i);
+        contained.pop_back();
 
-        for (auto jj : contained) {
-            REQUIRE(map.get(jj.first));
+        for (auto j : contained) {
+            REQUIRE(map.get(j));
         }
     }
 }
 
 TEST_CASE("random insert, sorted remove") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
-    const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    const auto urbg_ptr = make_urbg();
+    std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    std::sort(to_insert.begin(), to_insert.end());
-    std::map<int, int> contained;
-    std::transform(to_insert.cbegin(), to_insert.cend(),
-                   std::inserter(contained, contained.begin()),
-                   [](int i) { return std::make_pair(i, i); });
+    const std::vector<int> to_remove = sorted(std::move(to_insert));
+    std::vector<int> contained = reversed(std::vector<int>(to_remove));
 
-    for (int i : to_insert) {
+    for (int i : to_remove) {
         REQUIRE(map.remove(i));
-        contained.erase(i);
+        contained.pop_back();
 
-        for (auto jj : contained) {
-            REQUIRE(map.get(jj.first));
+        for (auto j : contained) {
+            REQUIRE(map.get(j));
         }
     }
 }
 
 TEST_CASE("random insert, random remove") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
-    const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    const auto urbg_ptr = make_urbg();
+    std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
-    std::map<int, int> contained;
-    std::transform(to_insert.cbegin(), to_insert.cend(),
-                   std::inserter(contained, contained.begin()),
-                   [](int i) { return std::make_pair(i, i); });
+    const std::vector<int> to_remove = shuffled(std::move(to_insert), *urbg_ptr);
+    std::vector<int> contained = reversed(std::vector<int>(to_remove));
 
-    for (int i : to_insert) {
+    for (int i : to_remove) {
         REQUIRE(map.remove(i));
-        contained.erase(i);
+        contained.pop_back();
 
-        for (auto jj : contained) {
-            REQUIRE(map.get(jj.first));
+        for (auto j : contained) {
+            REQUIRE(map.get(j));
         }
     }
 }
