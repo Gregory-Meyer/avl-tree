@@ -24,12 +24,9 @@
 //  IN THE SOFTWARE.
 
 #include "avl_map.h"
+#include "util.h"
 
-#include <algorithm>
 #include <map>
-#include <memory>
-#include <numeric>
-#include <random>
 #include <vector>
 
 #include <catch2/catch.hpp>
@@ -38,11 +35,10 @@ constexpr std::size_t NUM_INSERTIONS = 2048;
 
 TEST_CASE("sorted insert, sorted get") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
+    const std::vector<int> to_insert = iota(NUM_INSERTIONS);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
     for (int i : to_insert) {
@@ -52,15 +48,14 @@ TEST_CASE("sorted insert, sorted get") {
 
 TEST_CASE("sorted insert, random get") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
+    std::vector<int> to_insert = iota(NUM_INSERTIONS);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    const auto urbg_ptr = make_urbg();
+    to_insert = shuffled(std::move(to_insert), *urbg_ptr);
 
     for (int i : to_insert) {
         REQUIRE(map.get(i));
@@ -69,16 +64,14 @@ TEST_CASE("sorted insert, random get") {
 
 TEST_CASE("random insert, sorted get") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
-    const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    const auto urbg_ptr = make_urbg();
+    std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    std::sort(to_insert.begin(), to_insert.end());
+    to_insert = sorted(std::move(to_insert));
 
     for (int i : to_insert) {
         REQUIRE(map.get(i));
@@ -87,16 +80,14 @@ TEST_CASE("random insert, sorted get") {
 
 TEST_CASE("random insert, random get") {
     avl::Map<int, int> map;
-    std::vector<int> to_insert(NUM_INSERTIONS);
-    std::iota(to_insert.begin(), to_insert.end(), 0);
-    const std::unique_ptr<std::mt19937> gen_ptr(new std::mt19937());
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    const auto urbg_ptr = make_urbg();
+    std::vector<int> to_insert = rand_iota(NUM_INSERTIONS, *urbg_ptr);
 
     for (int i : to_insert) {
-        REQUIRE_FALSE(map.insert(i, i));
+        REQUIRE_FALSE(map.insert(i, i).second);
     }
 
-    std::shuffle(to_insert.begin(), to_insert.end(), *gen_ptr);
+    to_insert = shuffled(std::move(to_insert), *urbg_ptr);
 
     for (int i : to_insert) {
         REQUIRE(map.get(i));

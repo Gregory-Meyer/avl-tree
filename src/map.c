@@ -136,6 +136,16 @@ static AvlNode* find(AvlNode *root, const void *key, AvlHetComparator comparator
 
 static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode *inserted);
 
+typedef struct NodeOrParentRet {
+    AvlNode **node_or_parent;
+    AvlNode **last_with_nonzero_balance_factor;
+    int is_node;
+} NodeOrParentRet;
+
+static NodeOrParentRet find_node_or_parent(AvlNode **root_ptr, const void *key,
+                                           AvlHetComparator compare, void *arg,
+                                           BitStack *is_left_flags);
+
 #ifdef NDEBUG
 #define assert_correct_balance_factors(N) ((void) 0)
 #else
@@ -155,71 +165,166 @@ static int do_assert_balance_factors(const AvlNode *node);
  *           was one.
  */
 AvlNode* AvlTree_insert(AvlTree *self, AvlNode *node) {
+    unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
+    BitStack is_left_flags;
+    NodeOrParentRet ret;
+    AvlNode *previous;
+
     assert(self);
     assert(node);
 
-    if (!self->root) {
-        self->root = node;
+    BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
+    ret = find_node_or_parent(&self->root, node, (AvlHetComparator) self->compare,
+                                         self->compare_arg, &is_left_flags);
+
+    if (ret.is_node) {
+        previous = *ret.node_or_parent;
+        *ret.node_or_parent = node;
+
+        node->left = previous->left;
+        node->right = previous->right;
+        node->balance_factor = previous->balance_factor;
+
+        previous->left = NULL;
+        previous->right = NULL;
+        previous->balance_factor = 0;
+    } else {
         ++self->len;
 
-        return NULL;
-    } else {
-        unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
-        BitStack is_left_flags;
-        AvlNode **current_ptr = &self->root;
-        AvlNode **rotate_root_ptr = &self->root;
+        *ret.node_or_parent = node;
+        previous = NULL;
+        node->left = NULL;
+        node->right = NULL;
+        node->balance_factor = 0;
 
-        BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
+        if (ret.last_with_nonzero_balance_factor) {
+            rebalance(&is_left_flags, ret.last_with_nonzero_balance_factor, node);
+            assert_correct_balance_factors(self->root);
+        }
+    }
+
+    BitStack_drop(&is_left_flags);
+
+    return previous;
+}
+
+/**
+ *  Inserts an element into an AvlTree if no element with a matching
+ *  key is found.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param compare Must not be NULL. Must form the same total ordering
+ *                 over the contained elements as the one formed by one
+ *                 passed to AvlTree_new. Will be invoked by
+ *                 compare(key, node, compare_arg).
+ *  @param insert Must not be NULL. If no element that compares equal
+ *                to key is found, will be invoked by
+ *                insert(key, insert_arg) to obtain a new node. Its
+ *                return value must compare equal to key.
+ *  @param inserted If not NULL, will be set to 1 if insert was called.
+ *                  Otherwise will be set to 0.
+ *  @returns The element that compares equal to key or was just
+ *           inserted.
+ */
+AvlNode* AvlTree_get_or_insert(AvlTree *self, const void *key, AvlHetComparator compare,
+                               void *compare_arg, AvlNode* (*insert)(const void*, void*),
+                               void *insert_arg, int *inserted) {
+    unsigned long is_left_flags_buf[IS_LEFT_FLAGS_BUF_SZ];
+    BitStack is_left_flags;
+    NodeOrParentRet ret;
+    AvlNode *equal_or_inserted;
+
+    assert(self);
+    assert(compare);
+    assert(insert);
+
+    BitStack_from_adopted_slice(&is_left_flags, is_left_flags_buf, IS_LEFT_FLAGS_BUF_SZ);
+    ret = find_node_or_parent(&self->root, key, compare, compare_arg, &is_left_flags);
+
+    if (ret.is_node) {
+        equal_or_inserted = *ret.node_or_parent;
+
+        if (inserted) {
+            *inserted = 0;
+        }
+    } else {
+        ++self->len;
+        equal_or_inserted = insert(key, insert_arg);
+        assert(equal_or_inserted);
+
+        equal_or_inserted->left = NULL;
+        equal_or_inserted->right = NULL;
+        equal_or_inserted->balance_factor = 0;
+
+        *ret.node_or_parent = equal_or_inserted;
+
+        if (inserted) {
+            *inserted = 1;
+        }
+
+        if (ret.last_with_nonzero_balance_factor) {
+            rebalance(&is_left_flags, ret.last_with_nonzero_balance_factor, equal_or_inserted);
+            assert_correct_balance_factors(self->root);
+        }
+    }
+
+    BitStack_drop(&is_left_flags);
+
+    return equal_or_inserted;
+}
+
+static NodeOrParentRet find_node_or_parent(AvlNode **root_ptr, const void *key,
+                                           AvlHetComparator compare, void *arg,
+                                           BitStack *is_left_flags) {
+    NodeOrParentRet to_return;
+
+    assert(root_ptr);
+    assert(compare);
+    assert(is_left_flags);
+
+    to_return.last_with_nonzero_balance_factor = NULL;
+
+    if (!*root_ptr) {
+        to_return.is_node = 0;
+        to_return.node_or_parent = root_ptr;
+
+        return to_return;
+    } else {
+        AvlNode **current_ptr = root_ptr;
+        AvlNode **rotate_root_ptr = root_ptr;
 
         while (1) {
             AvlNode *const current = *current_ptr;
-            const int compare = self->compare(node, current, self->compare_arg);
+            const int ordering = compare(key, current, arg);
 
-            if (compare == 0) { /* node == current */
-                *current_ptr = node;
-                node->left = current->left;
-                node->right = current->right;
-                node->balance_factor = current->balance_factor;
+            if (ordering == 0) { /* key == current */
+                to_return.is_node = 1;
+                to_return.node_or_parent = current_ptr;
 
-                current->left = NULL;
-                current->right = NULL;
-                current->balance_factor = 0;
+                return to_return;
+            }
 
-                BitStack_drop(&is_left_flags);
+            if (current->balance_factor != 0) {
+                rotate_root_ptr = current_ptr;
+                BitStack_clear(is_left_flags);
+            }
 
-                return current;
-            } else {
-                if (current->balance_factor != 0) {
-                    rotate_root_ptr = current_ptr;
-                    BitStack_clear(&is_left_flags);
-                }
+            if (ordering < 0) { /* key < current */
+                BitStack_push_set(is_left_flags);
+                current_ptr = &current->left;
+            } else { /* key > current, ordering > 0 */
+                BitStack_push_clear(is_left_flags);
+                current_ptr = &current->right;
+            }
 
-                if (compare < 0) { /* node < current */
-                    BitStack_push_set(&is_left_flags);
-                    current_ptr = &current->left;
-                } else { /* node > current, compare > 0 */
-                    BitStack_push_clear(&is_left_flags);
-                    current_ptr = &current->right;
-                }
+            if (!*current_ptr) {
+                to_return.is_node = 0;
+                to_return.node_or_parent = current_ptr;
+                to_return.last_with_nonzero_balance_factor = rotate_root_ptr;
 
-                if (!*current_ptr) {
-                    *current_ptr = node;
-                    node->left = NULL;
-                    node->right = NULL;
-                    node->balance_factor = 0;
-                    ++self->len;
-
-                    break;
-                }
+                return to_return;
             }
         }
-
-        rebalance(&is_left_flags, rotate_root_ptr, *current_ptr);
-        assert_correct_balance_factors(self->root);
-
-        BitStack_drop(&is_left_flags);
-
-        return NULL;
     }
 }
 
@@ -247,23 +352,6 @@ static void rebalance(const BitStack *is_left_flags, AvlNode **root_ptr, AvlNode
 
     *root_ptr = rotate(*root_ptr);
 }
-
-#ifndef NDEBUG
-static int do_assert_balance_factors(const AvlNode *node) {
-    if (!node) {
-        return 0;
-    } else {
-        const int left_height = assert_correct_balance_factors(node->left);
-        const int right_height = assert_correct_balance_factors(node->right);
-
-        const signed char balance_factor = (signed char) (right_height - left_height);
-
-        assert(node->balance_factor == balance_factor);
-
-        return MAX(left_height, right_height) + 1;
-    }
-}
-#endif
 
 static void remove_node(AvlTree *self, AvlNode **node_ptr, NodeStack *nodes,
                         BitStack *is_left_flags);
@@ -581,3 +669,20 @@ void AvlTree_clear(AvlTree *self) {
     self->len = 0;
     self->root = NULL;
 }
+
+#ifndef NDEBUG
+static int do_assert_balance_factors(const AvlNode *node) {
+    if (!node) {
+        return 0;
+    } else {
+        const int left_height = assert_correct_balance_factors(node->left);
+        const int right_height = assert_correct_balance_factors(node->right);
+
+        const signed char balance_factor = (signed char) (right_height - left_height);
+
+        assert(node->balance_factor == balance_factor);
+
+        return MAX(left_height, right_height) + 1;
+    }
+}
+#endif

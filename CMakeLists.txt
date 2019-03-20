@@ -27,7 +27,9 @@ if(BLOODHOUND_BUILD_TESTS)
     include_directories(test)
 
     add_executable(test_bloodhound test/runner.cpp test/get.spec.cpp
-                                   test/insert.spec.cpp test/remove.spec.cpp)
+                                   test/insert.spec.cpp
+                                   test/insert_or_assign.spec.cpp
+                                   test/remove.spec.cpp)
     target_link_libraries(test_bloodhound Catch2::Catch2 bloodhound)
 
     include(CTest)

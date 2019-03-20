@@ -23,6 +23,9 @@
 //  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 //  IN THE SOFTWARE.
 
+#ifndef AVL_SET_H
+#define AVL_SET_H
+
 #include "bloodhound.h"
 
 #include <functional>
@@ -131,3 +134,5 @@ private:
 };
 
 } // namespace avl
+
+#endif

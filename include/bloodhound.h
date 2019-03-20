@@ -170,6 +170,28 @@ AvlNode* AvlTree_get_mut(AvlTree *self, const void *key, AvlHetComparator compar
 AvlNode* AvlTree_insert(AvlTree *self, AvlNode *node);
 
 /**
+ *  Inserts an element into an AvlTree if no element with a matching
+ *  key is found.
+ *
+ *  @param self Must not be NULL. Must be initialized.
+ *  @param compare Must not be NULL. Must form the same total ordering
+ *                 over the contained elements as the one formed by one
+ *                 passed to AvlTree_new. Will be invoked by
+ *                 compare(key, node, compare_arg).
+ *  @param insert Must not be NULL. If no element that compares equal
+ *                to key is found, will be invoked by
+ *                insert(key, insert_arg) to obtain a new node. Its
+ *                return value must compare equal to key.
+ *  @param inserted If not NULL, will be set to 1 if insert was called.
+ *                  Otherwise will be set to 0.
+ *  @returns The element that compares equal to key or was just
+ *           inserted.
+ */
+AvlNode* AvlTree_get_or_insert(AvlTree *self, const void *key, AvlHetComparator compare,
+                               void *compare_arg, AvlNode* (*insert)(const void*, void*),
+                               void *insert_arg, int *inserted);
+
+/**
  *  Removes the node that compares equal to a key.
  *
  *  @param self Must not be NULL.
